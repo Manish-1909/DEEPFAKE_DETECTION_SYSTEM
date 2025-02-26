@@ -10,14 +10,14 @@ interface AnalysisDisplayProps {
 }
 
 const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
-  const { confidence, analysis } = results;
+  const { confidence, analysis, metadata } = results;
   
-  const mockTimelineData = [
-    { frame: 1, confidence: confidence },
-    { frame: 2, confidence: confidence - Math.random() * 5 },
-    { frame: 3, confidence: confidence - Math.random() * 3 },
-    { frame: 4, confidence: confidence + Math.random() * 2 },
-    { frame: 5, confidence: confidence },
+  const timelineData = analysis.suspiciousFrames || [
+    { timestamp: 0, confidence: confidence },
+    { timestamp: 1000, confidence: confidence - Math.random() * 5 },
+    { timestamp: 2000, confidence: confidence - Math.random() * 3 },
+    { timestamp: 3000, confidence: confidence + Math.random() * 2 },
+    { timestamp: 4000, confidence: confidence },
   ];
 
   const getConfidenceLevel = (score: number) => {
@@ -37,15 +37,20 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
         className="glassmorphism rounded-xl p-6 space-y-6 bg-white/5 backdrop-blur-sm"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold">Analysis Results</h3>
-          <Badge variant="outline" className="bg-green-50 text-green-700">
-            Analysis Complete
-          </Badge>
+          <h3 className="text-xl font-semibold">Detection Results</h3>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="bg-blue-50 text-blue-700">
+              {metadata.type.toUpperCase()}
+            </Badge>
+            <Badge variant="outline" className="bg-green-50 text-green-700">
+              Analysis Complete
+            </Badge>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <h4 className="font-medium text-sm text-gray-600">Overall Confidence Score</h4>
+            <h4 className="font-medium text-sm text-gray-600">Manipulation Probability</h4>
             <div className="flex items-center justify-between mb-2">
               <span className="text-3xl font-semibold">{confidence.toFixed(1)}%</span>
               <Badge variant="outline" className={confidenceLevel.className}>
@@ -56,7 +61,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
           </div>
 
           <div className="space-y-4">
-            <h4 className="font-medium text-sm text-gray-600">Detection Metrics</h4>
+            <h4 className="font-medium text-sm text-gray-600">Analysis Metrics</h4>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm">Face Consistency</span>
@@ -71,7 +76,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">Artifacts Score</span>
+                <span className="text-sm">Artifacts Detection</span>
                 <Badge variant="outline" className="bg-green-50 text-green-700">
                   {analysis.artifactsScore.toFixed(1)}%
                 </Badge>
@@ -80,14 +85,42 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
           </div>
         </div>
 
+        <div className="space-y-4">
+          <h4 className="font-medium text-sm text-gray-600">Technical Details</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <span className="text-xs text-gray-500">Resolution</span>
+              <p className="font-medium">{metadata.resolution}</p>
+            </div>
+            {metadata.frameCount && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500">Frames Analyzed</span>
+                <p className="font-medium">{metadata.frameCount}</p>
+              </div>
+            )}
+            {metadata.duration && (
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500">Duration</span>
+                <p className="font-medium">{(metadata.duration / 1000).toFixed(1)}s</p>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="h-[300px] w-full mt-6">
           <h4 className="font-medium text-sm text-gray-600 mb-4">Confidence Timeline</h4>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={mockTimelineData}>
+            <LineChart data={timelineData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="frame" />
+              <XAxis 
+                dataKey="timestamp"
+                tickFormatter={(value) => `${(value/1000).toFixed(1)}s`}
+              />
               <YAxis domain={[0, 100]} />
-              <Tooltip />
+              <Tooltip 
+                formatter={(value: number) => [`${value.toFixed(1)}%`, 'Confidence']}
+                labelFormatter={(label: number) => `Time: ${(label/1000).toFixed(1)}s`}
+              />
               <Line
                 type="monotone"
                 dataKey="confidence"
