@@ -6,18 +6,26 @@ import { motion } from 'framer-motion';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
+import { AnalysisType } from './AnalysisOptions';
 
-const UploadZone = () => {
+interface UploadZoneProps {
+  analysisType: AnalysisType;
+  onFileSelect: (files: File[]) => void;
+  isAnalyzing: boolean;
+}
+
+const UploadZone = ({ analysisType, onFileSelect, isAnalyzing }: UploadZoneProps) => {
   const [url, setUrl] = useState('');
   const [files, setFiles] = useState<File[]>([]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles(prev => [...prev, ...acceptedFiles]);
+    onFileSelect(acceptedFiles);
     toast({
       title: 'Files added successfully',
       description: `${acceptedFiles.length} files have been added for analysis.`,
     });
-  }, []);
+  }, [onFileSelect]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -26,6 +34,7 @@ const UploadZone = () => {
       'video/*': ['.mp4', '.webm'],
     },
     maxFiles: 1,
+    disabled: isAnalyzing
   });
 
   const handleUrlSubmit = (e: React.FormEvent) => {
@@ -49,7 +58,8 @@ const UploadZone = () => {
         <div
           {...getRootProps()}
           className={`glassmorphism rounded-xl p-10 text-center cursor-pointer transition-all duration-300 
-            ${isDragActive ? 'border-primary border-2' : 'border-dashed border-2 border-gray-300'}`}
+            ${isDragActive ? 'border-primary border-2' : 'border-dashed border-2 border-gray-300'}
+            ${isAnalyzing ? 'opacity-50 pointer-events-none' : ''}`}
         >
           <input {...getInputProps()} />
           <motion.div
@@ -58,7 +68,7 @@ const UploadZone = () => {
           >
             <Upload className="w-12 h-12 text-primary mx-auto mb-4" />
             <h3 className="text-xl font-semibold mb-2">
-              {isDragActive ? 'Drop files here' : 'Drag & drop files here'}
+              {isDragActive ? 'Drop files here' : `Drop ${analysisType} here`}
             </h3>
             <p className="text-sm text-gray-500 mb-4">
               or click to select files
@@ -84,9 +94,14 @@ const UploadZone = () => {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="input-focus"
+              disabled={isAnalyzing}
             />
           </div>
-          <Button type="submit" className="bg-primary hover:bg-primary/90">
+          <Button 
+            type="submit" 
+            className="bg-primary hover:bg-primary/90"
+            disabled={isAnalyzing}
+          >
             <Link className="w-4 h-4 mr-2" />
             Add URL
           </Button>
