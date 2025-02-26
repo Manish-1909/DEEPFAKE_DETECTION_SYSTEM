@@ -25,6 +25,7 @@ const UploadZone = () => {
       'image/*': ['.jpeg', '.jpg', '.png'],
       'video/*': ['.mp4', '.webm'],
     },
+    maxFiles: 1,
   });
 
   const handleUrlSubmit = (e: React.FormEvent) => {
