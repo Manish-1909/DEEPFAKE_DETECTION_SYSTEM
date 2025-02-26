@@ -3,23 +3,38 @@ import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
+import { DetectionResult } from '@/services/detectionService';
 
-const mockData = [
-  { frame: 1, confidence: 95 },
-  { frame: 2, confidence: 92 },
-  { frame: 3, confidence: 88 },
-  { frame: 4, confidence: 90 },
-  { frame: 5, confidence: 85 },
-];
+interface AnalysisDisplayProps {
+  results: DetectionResult;
+}
 
-const AnalysisDisplay = () => {
+const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
+  const { confidence, analysis } = results;
+  
+  const mockTimelineData = [
+    { frame: 1, confidence: confidence },
+    { frame: 2, confidence: confidence - Math.random() * 5 },
+    { frame: 3, confidence: confidence - Math.random() * 3 },
+    { frame: 4, confidence: confidence + Math.random() * 2 },
+    { frame: 5, confidence: confidence },
+  ];
+
+  const getConfidenceLevel = (score: number) => {
+    if (score >= 90) return { label: 'High Confidence', className: 'bg-green-50 text-green-700' };
+    if (score >= 70) return { label: 'Medium Confidence', className: 'bg-yellow-50 text-yellow-700' };
+    return { label: 'Low Confidence', className: 'bg-red-50 text-red-700' };
+  };
+
+  const confidenceLevel = getConfidenceLevel(confidence);
+
   return (
     <div className="space-y-8 w-full max-w-4xl mx-auto p-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="glassmorphism rounded-xl p-6 space-y-6"
+        className="glassmorphism rounded-xl p-6 space-y-6 bg-white/5 backdrop-blur-sm"
       >
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-semibold">Analysis Results</h3>
@@ -32,12 +47,12 @@ const AnalysisDisplay = () => {
           <div className="space-y-4">
             <h4 className="font-medium text-sm text-gray-600">Overall Confidence Score</h4>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-3xl font-semibold">92%</span>
-              <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                High Confidence
+              <span className="text-3xl font-semibold">{confidence.toFixed(1)}%</span>
+              <Badge variant="outline" className={confidenceLevel.className}>
+                {confidenceLevel.label}
               </Badge>
             </div>
-            <Progress value={92} className="h-2" />
+            <Progress value={confidence} className="h-2" />
           </div>
 
           <div className="space-y-4">
@@ -46,19 +61,19 @@ const AnalysisDisplay = () => {
               <div className="flex justify-between items-center">
                 <span className="text-sm">Face Consistency</span>
                 <Badge variant="outline" className="bg-green-50 text-green-700">
-                  95%
+                  {analysis.faceConsistency.toFixed(1)}%
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">Audio-Lip Sync</span>
+                <span className="text-sm">Lighting Consistency</span>
                 <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
-                  88%
+                  {analysis.lightingConsistency.toFixed(1)}%
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">Visual Artifacts</span>
+                <span className="text-sm">Artifacts Score</span>
                 <Badge variant="outline" className="bg-green-50 text-green-700">
-                  93%
+                  {analysis.artifactsScore.toFixed(1)}%
                 </Badge>
               </div>
             </div>
@@ -68,7 +83,7 @@ const AnalysisDisplay = () => {
         <div className="h-[300px] w-full mt-6">
           <h4 className="font-medium text-sm text-gray-600 mb-4">Confidence Timeline</h4>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={mockData}>
+            <LineChart data={mockTimelineData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="frame" />
               <YAxis domain={[0, 100]} />

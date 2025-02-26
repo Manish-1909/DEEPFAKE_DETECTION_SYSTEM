@@ -6,14 +6,20 @@ import AnalysisDisplay from "@/components/AnalysisDisplay";
 import AnalysisOptions, { AnalysisType } from "@/components/AnalysisOptions";
 import { motion } from "framer-motion";
 import { toast } from "@/components/ui/use-toast";
-import { analyzeImage } from "@/services/detectionService";
+import { DetectionResult, analyzeImage } from "@/services/detectionService";
 
 const Index = () => {
   const [analysisType, setAnalysisType] = useState<AnalysisType | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [results, setResults] = useState<DetectionResult | null>(null);
 
   const handleAnalysisTypeSelect = (type: AnalysisType) => {
     setAnalysisType(type);
+    setResults(null); // Reset results when switching modes
+    toast({
+      title: "Mode changed",
+      description: `Switched to ${type} mode`,
+    });
   };
 
   const handleFileAnalysis = async (files: File[]) => {
@@ -23,7 +29,8 @@ const Index = () => {
     try {
       // Convert file to URL for analysis
       const fileUrl = URL.createObjectURL(files[0]);
-      await analyzeImage(fileUrl);
+      const analysisResults = await analyzeImage(fileUrl);
+      setResults(analysisResults);
       
       toast({
         title: "Analysis complete",
@@ -35,6 +42,7 @@ const Index = () => {
         description: "There was an error analyzing your media.",
         variant: "destructive",
       });
+      setResults(null);
     } finally {
       setIsAnalyzing(false);
     }
@@ -53,8 +61,12 @@ const Index = () => {
           <AnalysisOptions onSelect={handleAnalysisTypeSelect} />
           {analysisType && (
             <>
-              <UploadZone />
-              <AnalysisDisplay />
+              <UploadZone 
+                analysisType={analysisType} 
+                onFileSelect={handleFileAnalysis}
+                isAnalyzing={isAnalyzing}
+              />
+              {results && <AnalysisDisplay results={results} />}
             </>
           )}
         </motion.div>
