@@ -1,7 +1,7 @@
 
-import { Header } from "@/components/Header";
-import { UploadZone } from "@/components/UploadZone";
-import { AnalysisDisplay } from "@/components/AnalysisDisplay";
+import Header from "@/components/Header";
+import UploadZone from "@/components/UploadZone";
+import AnalysisDisplay from "@/components/AnalysisDisplay";
 import { motion } from "framer-motion";
 
 const Index = () => {
