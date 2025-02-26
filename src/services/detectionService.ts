@@ -42,7 +42,7 @@ export const analyzeImage = async (imageUrl: string) => {
     
     const mainResult = Array.isArray(results) ? results[0] : results;
     const score = typeof mainResult === 'object' && 'score' in mainResult 
-      ? mainResult.score 
+      ? Number(mainResult.score) // Ensure score is a number
       : 0;
     
     const confidence = score * 100;
@@ -64,7 +64,7 @@ export const analyzeImage = async (imageUrl: string) => {
       },
       metadata: {
         type: 'image',
-        resolution: '1920x1080', // Placeholder
+        resolution: '1920x1080',
       }
     } as DetectionResult;
   } catch (error) {
@@ -83,7 +83,9 @@ export const analyzeVideo = async (videoUrl: string): Promise<DetectionResult> =
     const frameResults = [];
     for (let i = 0; i < 5; i++) {
       const result = await detector(preprocessedUrl);
-      const score = typeof result === 'object' && 'score' in result ? result.score : 0;
+      const score = typeof result === 'object' && 'score' in result 
+        ? Number(result.score) // Ensure score is a number
+        : 0;
       frameResults.push({
         timestamp: i * 1000,
         confidence: score * 100
@@ -107,7 +109,7 @@ export const analyzeVideo = async (videoUrl: string): Promise<DetectionResult> =
         type: 'video',
         frameCount: frameResults.length,
         duration: frameResults.length * 1000,
-        resolution: '1920x1080', // Placeholder
+        resolution: '1920x1080',
       }
     };
   } catch (error) {
@@ -137,7 +139,9 @@ export const startWebcamAnalysis = async (stream: MediaStream): Promise<Detectio
     const frameDataUrl = canvas.toDataURL('image/jpeg');
     const results = await detector(frameDataUrl);
     
-    const score = typeof results === 'object' && 'score' in results ? results.score : 0;
+    const score = typeof results === 'object' && 'score' in results 
+      ? Number(results.score) // Ensure score is a number
+      : 0;
     const confidence = score * 100;
     
     console.log('Webcam analysis complete. Confidence:', confidence);
