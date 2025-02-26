@@ -25,9 +25,11 @@ export const analyzeImage = async (imageUrl: string) => {
     const detector = await initializeDetector();
     const results = await detector(imageUrl);
     
-    // Convert model output to our format
-    const mainResult = results[0];
-    const confidence = mainResult.score * 100;
+    // Handle both array and single result formats
+    const mainResult = Array.isArray(results) ? results[0] : results;
+    
+    // The model returns a confidence score as a number between 0 and 1
+    const confidence = (mainResult?.confidence || mainResult?.scores?.[0] || 0) * 100;
     
     return {
       confidence,
