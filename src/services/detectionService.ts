@@ -28,8 +28,12 @@ export const analyzeImage = async (imageUrl: string) => {
     // Handle both array and single result formats
     const mainResult = Array.isArray(results) ? results[0] : results;
     
-    // The model returns a confidence score as a number between 0 and 1
-    const confidence = (mainResult?.confidence || mainResult?.scores?.[0] || 0) * 100;
+    // Access the score property which exists in the model output
+    const score = typeof mainResult === 'object' && 'score' in mainResult 
+      ? mainResult.score 
+      : 0;
+    
+    const confidence = score * 100;
     
     return {
       confidence,
