@@ -51,9 +51,10 @@ export const initializeDetector = async () => {
   return detector;
 };
 
-const extractVideoFrames = (video: HTMLVideoElement): Promise<string[]> => {
+const extractVideoFrames = async (videoBlob: Blob): Promise<string[]> => {
   return new Promise((resolve) => {
     const frames: string[] = [];
+    const video = document.createElement('video');
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d')!;
     const frameInterval = 1000; // 1 second interval
@@ -80,7 +81,7 @@ const extractVideoFrames = (video: HTMLVideoElement): Promise<string[]> => {
       captureFrame();
     });
 
-    video.src = video.src || URL.createObjectURL(video);
+    video.src = URL.createObjectURL(videoBlob);
     video.load();
   });
 };
@@ -127,7 +128,7 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
         }] : []
       },
       metadata: {
-        type: 'image',
+        type: 'image' as const,
         resolution: `${img.width}x${img.height}`
       }
     };
@@ -145,14 +146,14 @@ export const analyzeVideo = async (
     console.log('Starting video analysis:', videoUrl);
     const detector = await initializeDetector();
     
-    // Create video element
-    const video = document.createElement('video');
-    video.src = videoUrl;
+    // Fetch video as blob first
+    const response = await fetch(videoUrl);
+    const videoBlob = await response.blob();
     
     if (onProgress) onProgress(10);
     
     // Extract frames
-    const frames = await extractVideoFrames(video);
+    const frames = await extractVideoFrames(videoBlob);
     console.log(`Extracted ${frames.length} frames from video`);
     
     if (onProgress) onProgress(50);
@@ -188,6 +189,13 @@ export const analyzeVideo = async (
     }
     
     const avgConfidence = frameResults.reduce((acc, curr) => acc + curr.confidence, 0) / frameResults.length;
+
+    // Create temporary video element to get metadata
+    const tempVideo = document.createElement('video');
+    tempVideo.src = URL.createObjectURL(videoBlob);
+    await new Promise(resolve => {
+      tempVideo.onloadedmetadata = resolve;
+    });
     
     return {
       confidence: avgConfidence,
@@ -199,10 +207,10 @@ export const analyzeVideo = async (
         suspiciousFrames: frameResults,
       },
       metadata: {
-        type: 'video',
+        type: 'video' as const,
         frameCount: frames.length,
-        duration: video.duration * 1000,
-        resolution: `${video.videoWidth}x${video.videoHeight}`,
+        duration: tempVideo.duration * 1000,
+        resolution: `${tempVideo.videoWidth}x${tempVideo.videoHeight}`,
         processedFrames: frames.length,
         totalFrames: frames.length
       }
@@ -279,7 +287,7 @@ export const startWebcamAnalysis = async (
         }] : []
       },
       metadata: {
-        type: 'video',
+        type: 'video' as const,
         resolution: `${video.videoWidth}x${video.videoHeight}`,
       }
     };
