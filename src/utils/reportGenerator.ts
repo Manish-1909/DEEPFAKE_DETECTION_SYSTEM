@@ -23,43 +23,62 @@ export const generatePDFReport = (results: DetectionResult) => {
     ['Resolution', results.metadata.resolution || 'N/A'],
   ];
 
+  // Start position for first table
+  let yPos = 40;
+
+  // Add main results table
   autoTable(doc, {
     head: [['Parameter', 'Value']],
     body: mainResults,
-    startY: 40,
+    startY: yPos,
     theme: 'grid',
+    didDrawPage: (data) => {
+      yPos = data.cursor.y;
+    },
   });
 
-  // Add detailed analysis
+  // Add detailed analysis title
+  yPos += 20;
+  doc.setFontSize(14);
+  doc.text('Detailed Analysis', 14, yPos);
+
+  // Add analysis results
   const analysisResults = [
     ['Face Consistency', `${results.analysis.faceConsistency.toFixed(1)}%`],
     ['Lighting Consistency', `${results.analysis.lightingConsistency.toFixed(1)}%`],
     ['Artifacts Score', `${results.analysis.artifactsScore.toFixed(1)}%`],
   ];
 
-  doc.setFontSize(14);
-  doc.text('Detailed Analysis', 14, doc.lastAutoTable.finalY + 20);
-
+  // Add analysis results table
+  yPos += 5;
   autoTable(doc, {
     head: [['Analysis Type', 'Score']],
     body: analysisResults,
-    startY: doc.lastAutoTable.finalY + 25,
+    startY: yPos,
     theme: 'grid',
+    didDrawPage: (data) => {
+      yPos = data.cursor.y;
+    },
   });
 
+  // Add frame analysis for videos
   if (results.metadata.type === 'video' && results.analysis.suspiciousFrames) {
     const frameData = results.analysis.suspiciousFrames.map(frame => [
       `${(frame.timestamp / 1000).toFixed(1)}s`,
       `${frame.confidence.toFixed(1)}%`
     ]);
 
+    // Add frame analysis title
+    yPos += 20;
     doc.setFontSize(14);
-    doc.text('Frame Analysis', 14, doc.lastAutoTable.finalY + 20);
+    doc.text('Frame Analysis', 14, yPos);
 
+    // Add frame analysis table
+    yPos += 5;
     autoTable(doc, {
       head: [['Timestamp', 'Confidence']],
       body: frameData,
-      startY: doc.lastAutoTable.finalY + 25,
+      startY: yPos,
       theme: 'grid',
     });
   }
