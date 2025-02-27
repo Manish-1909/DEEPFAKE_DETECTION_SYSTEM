@@ -3,7 +3,10 @@ import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
+import { Button } from './ui/button';
+import { FileDown } from 'lucide-react';
 import { DetectionResult } from '@/services/detectionService';
+import { generatePDFReport } from '@/utils/reportGenerator';
 
 interface AnalysisDisplayProps {
   results: DetectionResult;
@@ -28,6 +31,10 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
 
   const confidenceLevel = getConfidenceLevel(confidence);
 
+  const handleDownloadReport = () => {
+    generatePDFReport(results);
+  };
+
   return (
     <div className="space-y-8 w-full max-w-4xl mx-auto p-6">
       <motion.div
@@ -36,15 +43,21 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
         transition={{ duration: 0.5 }}
         className="glassmorphism rounded-xl p-6 space-y-6 bg-white/5 backdrop-blur-sm"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <h3 className="text-xl font-semibold">Detection Results</h3>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="bg-blue-50 text-blue-700">
-              {metadata.type.toUpperCase()}
-            </Badge>
-            <Badge variant="outline" className="bg-green-50 text-green-700">
-              Analysis Complete
-            </Badge>
+          <div className="flex gap-4 items-center">
+            <div className="flex gap-2">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                {metadata.type.toUpperCase()}
+              </Badge>
+              <Badge variant="outline" className="bg-green-50 text-green-700">
+                Analysis Complete
+              </Badge>
+            </div>
+            <Button onClick={handleDownloadReport} variant="outline" className="gap-2">
+              <FileDown className="w-4 h-4" />
+              Download Report
+            </Button>
           </div>
         </div>
 
