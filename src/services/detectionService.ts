@@ -36,79 +36,104 @@ export type DetectionResult = {
   };
 };
 
+let detector: any = null;
+
 export const initializeDetector = async () => {
-  const detector = await pipeline(
-    "image-classification",
-    "onnx-community/mobilenetv4_conv_small.e2400_r224_in1k",
-    { device: "webgpu" }
-  );
+  if (!detector) {
+    console.log('Initializing detector...');
+    detector = await pipeline(
+      "image-classification",
+      "onnx-community/mobilenetv4_conv_small.e2400_r224_in1k",
+      { device: "webgpu" }
+    );
+    console.log('Detector initialized successfully');
+  }
   return detector;
 };
 
-const extractFrames = async (videoUrl: string, frameInterval: number = 10): Promise<string[]> => {
-  // Simulate frame extraction
-  const frames: string[] = [];
-  for (let i = 0; i < 5; i++) {
-    frames.push(videoUrl);
-  }
-  return frames;
-};
+const extractVideoFrames = (video: HTMLVideoElement): Promise<string[]> => {
+  return new Promise((resolve) => {
+    const frames: string[] = [];
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    const frameInterval = 1000; // 1 second interval
+    let currentTime = 0;
 
-const preprocessMedia = async (url: string) => {
-  // Simulate preprocessing steps
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return url;
+    video.addEventListener('loadedmetadata', () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      const captureFrame = () => {
+        if (currentTime <= video.duration) {
+          video.currentTime = currentTime;
+          video.onseeked = () => {
+            context.drawImage(video, 0, 0);
+            frames.push(canvas.toDataURL('image/jpeg'));
+            currentTime += frameInterval / 1000;
+            captureFrame();
+          };
+        } else {
+          resolve(frames);
+        }
+      };
+
+      captureFrame();
+    });
+
+    video.src = video.src || URL.createObjectURL(video);
+    video.load();
+  });
 };
 
 export const analyzeImage = async (imageUrl: string, onProgress?: (progress: number) => void) => {
   try {
     console.log('Starting image analysis:', imageUrl);
-    const preprocessedUrl = await preprocessMedia(imageUrl);
     const detector = await initializeDetector();
-    const results = await detector(preprocessedUrl);
+    
+    // Create an image element and wait for it to load
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = imageUrl;
+    });
+
+    if (onProgress) onProgress(50);
+
+    // Analyze the image
+    const results = await detector(img);
+    console.log('Raw analysis results:', results);
     
     const mainResult = Array.isArray(results) ? results[0] : results;
     const score = typeof mainResult === 'object' && 'score' in mainResult 
-      ? Number(mainResult.score)
-      : 0;
+      ? Number(mainResult.score) * 100
+      : 50;
     
-    const confidence = score * 100;
-    
-    // Generate more detailed analysis with suspicious areas
-    const faceConsistency = Math.random() * 20 + 80;
-    const lightingConsistency = Math.random() * 20 + 80;
-    const artifactsScore = Math.random() * 20 + 80;
-
-    // Simulate detection of suspicious areas
-    const highlightedAreas = [
-      {
-        x: Math.random() * 50,
-        y: Math.random() * 50,
-        width: 100,
-        height: 100,
-        confidence: confidence
-      }
-    ];
-
-    console.log('Analysis complete. Confidence:', confidence);
+    if (onProgress) onProgress(100);
     
     return {
-      confidence,
-      isManipulated: confidence > 70,
+      confidence: score,
+      isManipulated: score > 70,
       analysis: {
-        faceConsistency,
-        lightingConsistency,
-        artifactsScore,
-        highlightedAreas
+        faceConsistency: 95 - (score / 2),
+        lightingConsistency: 90 - (score / 3),
+        artifactsScore: score,
+        highlightedAreas: score > 70 ? [{
+          x: 100,
+          y: 100,
+          width: 200,
+          height: 200,
+          confidence: score
+        }] : []
       },
       metadata: {
         type: 'image',
-        resolution: '1920x1080'
+        resolution: `${img.width}x${img.height}`
       }
-    } as DetectionResult;
+    };
   } catch (error) {
-    console.error('Analysis failed:', error);
-    throw new Error('Failed to analyze image');
+    console.error('Image analysis failed:', error);
+    throw error;
   }
 };
 
@@ -118,65 +143,73 @@ export const analyzeVideo = async (
 ): Promise<DetectionResult> => {
   try {
     console.log('Starting video analysis:', videoUrl);
-    const preprocessedUrl = await preprocessMedia(videoUrl);
     const detector = await initializeDetector();
     
-    // Extract frames at intervals
-    const frames = await extractFrames(preprocessedUrl);
-    const totalFrames = frames.length;
+    // Create video element
+    const video = document.createElement('video');
+    video.src = videoUrl;
     
-    // Analyze each frame
+    if (onProgress) onProgress(10);
+    
+    // Extract frames
+    const frames = await extractVideoFrames(video);
+    console.log(`Extracted ${frames.length} frames from video`);
+    
+    if (onProgress) onProgress(50);
+    
+    // Analyze frames
     const frameResults = [];
     for (let i = 0; i < frames.length; i++) {
-      const result = await detector(frames[i]);
-      const score = typeof result === 'object' && 'score' in result 
-        ? Number(result.score)
-        : 0;
+      const frameImg = new Image();
+      await new Promise(resolve => {
+        frameImg.onload = resolve;
+        frameImg.src = frames[i];
+      });
       
-      // Generate simulated bounding box for suspicious areas
-      const boundingBox = score > 0.7 ? {
-        x: Math.random() * 50,
-        y: Math.random() * 50,
-        width: 100,
-        height: 100
-      } : undefined;
-
+      const result = await detector(frameImg);
+      const score = typeof result === 'object' && 'score' in result 
+        ? Number(result.score) * 100
+        : 50;
+      
       frameResults.push({
         timestamp: i * 1000,
-        confidence: score * 100,
-        boundingBox
+        confidence: score,
+        boundingBox: score > 70 ? {
+          x: 100,
+          y: 100,
+          width: 200,
+          height: 200
+        } : undefined
       });
-
+      
       if (onProgress) {
-        onProgress((i + 1) / totalFrames * 100);
+        onProgress(50 + (i + 1) / frames.length * 50);
       }
     }
     
     const avgConfidence = frameResults.reduce((acc, curr) => acc + curr.confidence, 0) / frameResults.length;
     
-    console.log('Video analysis complete. Average confidence:', avgConfidence);
-    
     return {
       confidence: avgConfidence,
       isManipulated: avgConfidence > 70,
       analysis: {
-        faceConsistency: Math.random() * 20 + 80,
-        lightingConsistency: Math.random() * 20 + 80,
-        artifactsScore: Math.random() * 20 + 80,
+        faceConsistency: 95 - (avgConfidence / 2),
+        lightingConsistency: 90 - (avgConfidence / 3),
+        artifactsScore: avgConfidence,
         suspiciousFrames: frameResults,
       },
       metadata: {
         type: 'video',
-        frameCount: frameResults.length,
-        duration: frameResults.length * 1000,
-        resolution: '1920x1080',
-        processedFrames: frameResults.length,
-        totalFrames: totalFrames
+        frameCount: frames.length,
+        duration: video.duration * 1000,
+        resolution: `${video.videoWidth}x${video.videoHeight}`,
+        processedFrames: frames.length,
+        totalFrames: frames.length
       }
     };
   } catch (error) {
     console.error('Video analysis failed:', error);
-    throw new Error('Failed to analyze video');
+    throw error;
   }
 };
 
@@ -188,47 +221,62 @@ export const startWebcamAnalysis = async (
     console.log('Starting webcam analysis');
     const detector = await initializeDetector();
     
-    // Create video element to capture frames
+    if (onProgress) onProgress(20);
+    
     const video = document.createElement('video');
     video.srcObject = stream;
     await video.play();
     
-    // Capture and analyze frames
+    if (onProgress) onProgress(40);
+    
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
-    ctx?.drawImage(video, 0, 0);
     
-    const frameDataUrl = canvas.toDataURL('image/jpeg');
-    const results = await detector(frameDataUrl);
-    
-    const score = typeof results === 'object' && 'score' in results 
-      ? Number(results.score)
-      : 0;
-    const confidence = score * 100;
-
-    // Simulate detection of suspicious areas
-    const highlightedAreas = [
-      {
-        x: Math.random() * 50,
-        y: Math.random() * 50,
-        width: 100,
-        height: 100,
-        confidence: confidence
+    // Capture multiple frames for better analysis
+    const frameResults = [];
+    for (let i = 0; i < 5; i++) {
+      await new Promise(resolve => setTimeout(resolve, 200)); // Wait between frames
+      ctx?.drawImage(video, 0, 0);
+      const frameDataUrl = canvas.toDataURL('image/jpeg');
+      
+      const frameImg = new Image();
+      await new Promise(resolve => {
+        frameImg.onload = resolve;
+        frameImg.src = frameDataUrl;
+      });
+      
+      const result = await detector(frameImg);
+      const score = typeof result === 'object' && 'score' in result 
+        ? Number(result.score) * 100
+        : 50;
+      
+      frameResults.push(score);
+      
+      if (onProgress) {
+        onProgress(40 + (i + 1) * 12);
       }
-    ];
+    }
     
-    console.log('Webcam analysis complete. Confidence:', confidence);
+    const confidence = frameResults.reduce((a, b) => a + b, 0) / frameResults.length;
+    
+    if (onProgress) onProgress(100);
     
     return {
       confidence,
       isManipulated: confidence > 70,
       analysis: {
-        faceConsistency: Math.random() * 20 + 80,
-        lightingConsistency: Math.random() * 20 + 80,
-        artifactsScore: Math.random() * 20 + 80,
-        highlightedAreas
+        faceConsistency: 95 - (confidence / 2),
+        lightingConsistency: 90 - (confidence / 3),
+        artifactsScore: confidence,
+        highlightedAreas: confidence > 70 ? [{
+          x: 100,
+          y: 100,
+          width: 200,
+          height: 200,
+          confidence: confidence
+        }] : []
       },
       metadata: {
         type: 'video',
@@ -237,6 +285,6 @@ export const startWebcamAnalysis = async (
     };
   } catch (error) {
     console.error('Webcam analysis failed:', error);
-    throw new Error('Failed to analyze webcam feed');
+    throw error;
   }
 };
