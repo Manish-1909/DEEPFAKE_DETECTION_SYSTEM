@@ -86,7 +86,7 @@ const extractVideoFrames = async (videoBlob: Blob): Promise<string[]> => {
   });
 };
 
-export const analyzeImage = async (imageUrl: string, onProgress?: (progress: number) => void) => {
+export const analyzeImage = async (imageUrl: string, onProgress?: (progress: number) => void): Promise<DetectionResult> => {
   try {
     console.log('Starting image analysis:', imageUrl);
     const detector = await initializeDetector();
@@ -112,7 +112,7 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
     
     if (onProgress) onProgress(100);
     
-    return {
+    const result: DetectionResult = {
       confidence: score,
       isManipulated: score > 70,
       analysis: {
@@ -128,10 +128,12 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
         }] : []
       },
       metadata: {
-        type: 'image' as const,
+        type: 'image',
         resolution: `${img.width}x${img.height}`
       }
     };
+
+    return result;
   } catch (error) {
     console.error('Image analysis failed:', error);
     throw error;
@@ -193,11 +195,11 @@ export const analyzeVideo = async (
     // Create temporary video element to get metadata
     const tempVideo = document.createElement('video');
     tempVideo.src = URL.createObjectURL(videoBlob);
-    await new Promise(resolve => {
+    await new Promise((resolve) => {
       tempVideo.onloadedmetadata = resolve;
     });
     
-    return {
+    const result: DetectionResult = {
       confidence: avgConfidence,
       isManipulated: avgConfidence > 70,
       analysis: {
@@ -207,7 +209,7 @@ export const analyzeVideo = async (
         suspiciousFrames: frameResults,
       },
       metadata: {
-        type: 'video' as const,
+        type: 'video',
         frameCount: frames.length,
         duration: tempVideo.duration * 1000,
         resolution: `${tempVideo.videoWidth}x${tempVideo.videoHeight}`,
@@ -215,6 +217,8 @@ export const analyzeVideo = async (
         totalFrames: frames.length
       }
     };
+
+    return result;
   } catch (error) {
     console.error('Video analysis failed:', error);
     throw error;
@@ -271,7 +275,7 @@ export const startWebcamAnalysis = async (
     
     if (onProgress) onProgress(100);
     
-    return {
+    const result: DetectionResult = {
       confidence,
       isManipulated: confidence > 70,
       analysis: {
@@ -287,10 +291,12 @@ export const startWebcamAnalysis = async (
         }] : []
       },
       metadata: {
-        type: 'video' as const,
+        type: 'video',
         resolution: `${video.videoWidth}x${video.videoHeight}`,
       }
     };
+
+    return result;
   } catch (error) {
     console.error('Webcam analysis failed:', error);
     throw error;
