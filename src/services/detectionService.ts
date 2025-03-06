@@ -116,38 +116,166 @@ const getRiskLevel = (confidence: number): 'low' | 'medium' | 'high' => {
   return 'high';
 };
 
-const generateMockClassification = (baseConfidenceOverride?: number) => {
-  // Generate more realistic-looking mock data with improved accuracy (85-90%)
-  const baseScore = baseConfidenceOverride ?? (78 + Math.random() * 12); // Score between 78-90%
-  return {
-    label: baseScore > 50 ? 'potentially_manipulated' : 'likely_authentic',
-    score: baseScore / 100
-  };
+// Improved function to determine if a piece of content should be classified as real or fake
+// Now uses a deterministic approach based on content hash to ensure consistent results
+const shouldClassifyAsManipulated = (input: string): boolean => {
+  // Simple hash function
+  const hash = Array.from(input).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  // Make approximately 40% of content classified as manipulated
+  return hash % 10 < 4;
 };
 
+// Generate more varied confidence scores based on whether we're showing real or fake content
+const generateConfidenceScore = (isManipulated: boolean): number => {
+  if (isManipulated) {
+    // For manipulated content: mostly high confidence (70-95%)
+    return 70 + Math.random() * 25;
+  } else {
+    // For authentic content: mostly low confidence (5-40%)
+    return 5 + Math.random() * 35;
+  }
+};
+
+// Generate realistic and varied sub-scores
+const generateAnalysisSubScores = (confidence: number): { 
+  faceConsistency: number, 
+  lightingConsistency: number, 
+  artifactsScore: number 
+} => {
+  const baseVariation = 15;
+  
+  const faceConsistency = Math.max(0, Math.min(100, 
+    confidence > 50 ? 
+      100 - confidence + (Math.random() - 0.5) * baseVariation : 
+      90 + (Math.random() - 0.5) * baseVariation
+  ));
+  
+  const lightingConsistency = Math.max(0, Math.min(100, 
+    confidence > 50 ? 
+      100 - confidence * 0.9 + (Math.random() - 0.5) * baseVariation : 
+      85 + (Math.random() - 0.5) * baseVariation
+  ));
+  
+  const artifactsScore = Math.max(0, Math.min(100, 
+    confidence > 50 ? 
+      confidence * 0.9 + (Math.random() - 0.5) * baseVariation : 
+      confidence * 0.7 + (Math.random() - 0.5) * baseVariation
+  ));
+  
+  return { faceConsistency, lightingConsistency, artifactsScore };
+};
+
+// Generate highlighted areas that visually match the confidence score
+const generateHighlightedAreas = (confidence: number, count = 3): any[] => {
+  if (confidence < 40) {
+    // Low confidence - no areas to highlight
+    return [];
+  }
+  
+  // Number of areas depends on confidence
+  const actualCount = confidence > 70 ? count : Math.ceil(count / 2);
+  
+  return Array.from({ length: actualCount }, (_, i) => {
+    // Different positions for each area
+    const x = 100 + (i * 150) % 300;
+    const y = 100 + (i * 100) % 200;
+    const areaConfidence = confidence * (0.8 + Math.random() * 0.4); // Varied but related to main confidence
+    
+    return {
+      x,
+      y,
+      width: 100 + Math.floor(Math.random() * 100),
+      height: 100 + Math.floor(Math.random() * 100),
+      confidence: Math.min(100, areaConfidence)
+    };
+  });
+};
+
+// Generate framewise confidence for videos
+const generateFramewiseConfidence = (frameCount: number, baseConfidence: number): number[] => {
+  // Create a natural progression pattern
+  const trend = Math.random() > 0.5 ? 1 : -1; // Upward or downward trend
+  const changeRate = 2 + Math.random() * 3; // How quickly the confidence changes
+  
+  return Array.from({ length: frameCount }, (_, i) => {
+    // Generate a value that trends up or down slightly through the video
+    // but with some randomness for realism
+    const trendEffect = trend * (i / frameCount) * changeRate;
+    const randomVariation = (Math.random() - 0.5) * 8;
+    const value = baseConfidence + trendEffect + randomVariation;
+    
+    // Clamp between 0-100
+    return Math.max(0, Math.min(100, value));
+  });
+};
+
+// Generate suspicious frames with realistic confidence values
+const generateSuspiciousFrames = (frameCount: number, framewiseConfidence: number[]): any[] => {
+  // Select frames with highest confidence as suspicious
+  const frameIndices = framewiseConfidence
+    .map((confidence, index) => ({ confidence, index }))
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, Math.ceil(frameCount * 0.4)) // About 40% of frames are suspicious
+    .map(item => item.index);
+  
+  return frameIndices.map(index => {
+    const confidence = framewiseConfidence[index];
+    const showBoundingBox = confidence > 60;
+    
+    return {
+      timestamp: index * 1000,
+      confidence,
+      boundingBox: showBoundingBox ? {
+        x: 100 + (index * 5) % 200,
+        y: 100 + (index % 3) * 20,
+        width: 180 + (index % 3) * 20,
+        height: 180 + (index % 2) * 20
+      } : undefined
+    };
+  });
+};
+
+// Generate varied audio analysis
 const generateMockAudioClassification = () => {
-  // Generate more accurate audio classification results (85-90%)
-  const baseScore = 80 + Math.random() * 10; // Score between 80-90%
+  // Randomly decide if this should be authentic or synthetic
+  const isSynthetic = Math.random() < 0.4; // 40% chance of synthetic speech
+  const score = isSynthetic ? 75 + Math.random() * 20 : 5 + Math.random() * 30;
+  
   return [
     {
-      label: baseScore > 50 ? 'synthetic_speech' : 'natural_speech',
-      score: baseScore / 100
+      label: isSynthetic ? 'synthetic_speech' : 'natural_speech',
+      score: score / 100
     },
     {
-      label: baseScore > 50 ? 'natural_speech' : 'synthetic_speech',
-      score: 1 - (baseScore / 100)
+      label: isSynthetic ? 'natural_speech' : 'synthetic_speech',
+      score: 1 - (score / 100)
     }
   ];
 };
 
-const generateFramewiseConfidence = (frameCount: number, baseConfidence: number): number[] => {
-  return Array.from({ length: frameCount }, () => {
-    // Generate more consistent variation around the base confidence
-    const variation = (Math.random() - 0.5) * 10; // +/- 5% variation
-    const value = baseConfidence + variation;
-    // Clamp between 0-100
-    return Math.max(0, Math.min(100, value));
-  });
+// Generate audio suspicious segments with realistic patterns
+const generateAudioSuspiciousSegments = (audioDuration: number, isManipulated: boolean): any[] => {
+  if (!isManipulated) {
+    return []; // No suspicious segments for authentic audio
+  }
+  
+  const segmentCount = Math.floor(2 + Math.random() * 4); // 2-5 segments
+  const baseConfidence = 70 + Math.random() * 20; // Base confidence for manipulated audio
+  
+  const suspiciousSegments = Array.from({ length: segmentCount }, (_, i) => {
+    const timestamp = Math.floor(Math.random() * audioDuration);
+    const duration = 500 + Math.floor(Math.random() * 1500); // 0.5-2s duration
+    const segmentConfidence = baseConfidence + (Math.random() - 0.5) * 10;
+    
+    return {
+      timestamp,
+      duration,
+      confidence: Math.max(0, Math.min(100, segmentConfidence)),
+      type: ['pitch_shift', 'unnatural_pause', 'rhythm_anomaly', 'voice_inconsistency', 'formant_deviation'][Math.floor(Math.random() * 5)]
+    };
+  }).sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp
+  
+  return suspiciousSegments;
 };
 
 export const analyzeImage = async (imageUrl: string, onProgress?: (progress: number) => void): Promise<DetectionResult> => {
@@ -157,48 +285,20 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
     
     if (onProgress) onProgress(30);
     
-    // For demo purposes, use mock classification with improved accuracy
-    const mockResult = generateMockClassification();
-    const score = mockResult.score * 100;
-    
-    // More detailed analysis with variation in sub-scores
-    const faceConsistency = Math.max(0, Math.min(100, 95 - (score / 2) + (Math.random() - 0.5) * 5));
-    const lightingConsistency = Math.max(0, Math.min(100, 90 - (score / 3) + (Math.random() - 0.5) * 5));
-    const artifactsScore = Math.max(0, Math.min(100, score + (Math.random() - 0.5) * 7));
+    // Determine if this image should be classified as manipulated based on URL
+    const isManipulated = shouldClassifyAsManipulated(imageUrl);
+    const confidence = generateConfidenceScore(isManipulated);
+    const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(confidence);
+    const highlightedAreas = generateHighlightedAreas(confidence);
     
     if (onProgress) onProgress(100);
     
-    const classification = getClassificationCategory(score);
-    const riskLevel = getRiskLevel(score);
-    
-    // Generate more highlighted areas for better visualization
-    const highlightedAreas = score > 60 ? [
-      {
-        x: 100,
-        y: 100,
-        width: 200,
-        height: 200,
-        confidence: score
-      },
-      {
-        x: 350,
-        y: 150,
-        width: 100,
-        height: 150,
-        confidence: score - 5
-      },
-      {
-        x: 250,
-        y: 300,
-        width: 150,
-        height: 100,
-        confidence: score - 10
-      }
-    ] : [];
+    const classification = getClassificationCategory(confidence);
+    const riskLevel = getRiskLevel(confidence);
     
     const result: DetectionResult = {
-      confidence: score,
-      isManipulated: score > 60,
+      confidence,
+      isManipulated,
       classification,
       riskLevel,
       analysis: {
@@ -216,32 +316,20 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
     return result;
   } catch (error) {
     console.error('Image analysis failed:', error);
-    // Return mock data with higher accuracy
+    // Return fallback data
+    const isManipulated = Math.random() < 0.4; // 40% chance of being manipulated
+    const confidence = generateConfidenceScore(isManipulated);
+    
     return {
-      confidence: 85,
-      isManipulated: true,
-      classification: 'possibly_manipulated',
-      riskLevel: 'medium',
+      confidence,
+      isManipulated,
+      classification: getClassificationCategory(confidence),
+      riskLevel: getRiskLevel(confidence),
       analysis: {
-        faceConsistency: 65,
-        lightingConsistency: 70,
-        artifactsScore: 85,
-        highlightedAreas: [
-          {
-            x: 150,
-            y: 120,
-            width: 180,
-            height: 160,
-            confidence: 85
-          },
-          {
-            x: 400,
-            y: 200,
-            width: 120,
-            height: 100,
-            confidence: 78
-          }
-        ]
+        faceConsistency: isManipulated ? 65 : 95,
+        lightingConsistency: isManipulated ? 70 : 90,
+        artifactsScore: isManipulated ? 85 : 15,
+        highlightedAreas: generateHighlightedAreas(confidence)
       },
       metadata: {
         type: 'image',
@@ -261,29 +349,17 @@ export const analyzeVideo = async (
     
     if (onProgress) onProgress(50);
     
-    // Generate more detailed mock frame results with higher accuracy
+    // Determine if this video should be classified as manipulated based on URL
+    const isManipulated = shouldClassifyAsManipulated(videoUrl);
+    const baseConfidence = generateConfidenceScore(isManipulated);
     const frameCount = 15;
-    const baseConfidence = 78 + Math.random() * 12; // Base confidence score 78-90%
     
     // Generate dynamic frame-wise confidence scores
     const framewiseConfidence = generateFramewiseConfidence(frameCount, baseConfidence);
-    
-    const frameResults = Array.from({ length: frameCount }, (_, i) => {
-      const frameConfidence = framewiseConfidence[i];
-      const showBoundingBox = frameConfidence > 60;
-      return {
-        timestamp: i * 1000,
-        confidence: frameConfidence,
-        boundingBox: showBoundingBox ? {
-          x: 100 + (i * 5),
-          y: 100 + (i % 3) * 10,
-          width: 200,
-          height: 200
-        } : undefined
-      };
-    });
+    const suspiciousFrames = isManipulated ? generateSuspiciousFrames(frameCount, framewiseConfidence) : [];
     
     const avgConfidence = framewiseConfidence.reduce((acc, curr) => acc + curr, 0) / frameCount;
+    const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(avgConfidence);
     
     if (onProgress) onProgress(100);
     
@@ -292,15 +368,15 @@ export const analyzeVideo = async (
     
     const result: DetectionResult = {
       confidence: avgConfidence,
-      isManipulated: avgConfidence > 60,
+      isManipulated,
       classification,
       riskLevel,
       analysis: {
-        faceConsistency: 95 - (avgConfidence / 2),
-        lightingConsistency: 90 - (avgConfidence / 3),
-        artifactsScore: avgConfidence,
+        faceConsistency,
+        lightingConsistency,
+        artifactsScore,
         framewiseConfidence,
-        suspiciousFrames: frameResults,
+        suspiciousFrames,
       },
       metadata: {
         type: 'video',
@@ -315,35 +391,31 @@ export const analyzeVideo = async (
     return result;
   } catch (error) {
     console.error('Video analysis failed:', error);
-    // Return mock data with higher accuracy
+    // Return fallback data
+    const isManipulated = Math.random() < 0.4; // 40% chance of being manipulated
+    const confidence = generateConfidenceScore(isManipulated);
+    const frameCount = 10;
+    const framewiseConfidence = generateFramewiseConfidence(frameCount, confidence);
+    
     return {
-      confidence: 85,
-      isManipulated: true,
-      classification: 'possibly_manipulated',
-      riskLevel: 'medium',
+      confidence,
+      isManipulated,
+      classification: getClassificationCategory(confidence),
+      riskLevel: getRiskLevel(confidence),
       analysis: {
-        faceConsistency: 65,
-        lightingConsistency: 60,
-        artifactsScore: 85,
-        framewiseConfidence: Array.from({ length: 10 }, () => 80 + Math.random() * 10),
-        suspiciousFrames: Array.from({ length: 10 }, (_, i) => ({
-          timestamp: i * 1000,
-          confidence: 80 + Math.random() * 10,
-          boundingBox: i % 2 === 0 ? {
-            x: 100 + (i * 10),
-            y: 100,
-            width: 200,
-            height: 200
-          } : undefined
-        }))
+        faceConsistency: isManipulated ? 65 : 95,
+        lightingConsistency: isManipulated ? 60 : 90,
+        artifactsScore: isManipulated ? 85 : 15,
+        framewiseConfidence,
+        suspiciousFrames: isManipulated ? generateSuspiciousFrames(frameCount, framewiseConfidence) : []
       },
       metadata: {
         type: 'video',
-        frameCount: 10,
-        duration: 10000,
+        frameCount: frameCount,
+        duration: frameCount * 1000,
         resolution: '1920x1080',
-        processedFrames: 10,
-        totalFrames: 10
+        processedFrames: frameCount,
+        totalFrames: frameCount
       }
     };
   }
@@ -359,27 +431,18 @@ export const analyzeAudio = async (
     
     if (onProgress) onProgress(30);
     
-    // Improved audio analysis with higher accuracy (85-90%)
-    const mockClassification = await generateMockAudioClassification();
-    const isSynthetic = mockClassification[0].label === 'synthetic_speech';
-    const confidence = mockClassification[0].score * 100;
+    // Determine if this audio should be classified as manipulated based on URL
+    const isManipulated = shouldClassifyAsManipulated(audioUrl);
+    const confidence = generateConfidenceScore(isManipulated);
     
-    // Generate suspicious segments with more detailed analysis
+    // Generate analysis data
     const audioDuration = 30000; // 30 seconds mock duration
-    const segmentCount = Math.floor(3 + Math.random() * 4); // 3-6 segments
+    const pitchConsistency = isManipulated ? 40 + Math.random() * 30 : 80 + Math.random() * 15;
+    const frequencyDistortion = isManipulated ? 60 + Math.random() * 30 : 10 + Math.random() * 20;
+    const artificialPatterns = isManipulated ? 65 + Math.random() * 25 : 5 + Math.random() * 15;
     
-    const suspiciousSegments = Array.from({ length: segmentCount }, (_, i) => {
-      const timestamp = Math.floor(Math.random() * audioDuration);
-      const duration = 500 + Math.floor(Math.random() * 1500); // 0.5-2s duration
-      const segmentConfidence = confidence + (Math.random() - 0.5) * 10;
-      
-      return {
-        timestamp,
-        duration,
-        confidence: Math.max(0, Math.min(100, segmentConfidence)),
-        type: ['pitch_shift', 'unnatural_pause', 'rhythm_anomaly', 'voice_inconsistency', 'formant_deviation'][Math.floor(Math.random() * 5)]
-      };
-    }).sort((a, b) => a.timestamp - b.timestamp);
+    // Generate suspicious segments only for manipulated audio
+    const suspiciousSegments = generateAudioSuspiciousSegments(audioDuration, isManipulated);
     
     if (onProgress) onProgress(100);
     
@@ -388,7 +451,7 @@ export const analyzeAudio = async (
     
     const result: DetectionResult = {
       confidence,
-      isManipulated: isSynthetic,
+      isManipulated,
       classification,
       riskLevel,
       analysis: {
@@ -398,9 +461,9 @@ export const analyzeAudio = async (
         artifactsScore: 0,
         // Add enhanced audio-specific analysis
         audioAnalysis: {
-          pitchConsistency: Math.max(0, Math.min(100, 90 - confidence * 0.8)),
-          frequencyDistortion: Math.max(0, Math.min(100, confidence * 0.7)),
-          artificialPatterns: Math.max(0, Math.min(100, confidence * 0.9)),
+          pitchConsistency,
+          frequencyDistortion,
+          artificialPatterns,
           suspiciousSegments
         }
       },
@@ -416,45 +479,30 @@ export const analyzeAudio = async (
     return result;
   } catch (error) {
     console.error('Audio analysis failed:', error);
-    // Return mock data with higher accuracy
+    // Return fallback data
+    const isManipulated = Math.random() < 0.4; // 40% chance of being manipulated
+    const confidence = generateConfidenceScore(isManipulated);
+    const audioDuration = 30000;
+    
     return {
-      confidence: 87,
-      isManipulated: true,
-      classification: 'possibly_manipulated',
-      riskLevel: 'high',
+      confidence,
+      isManipulated,
+      classification: getClassificationCategory(confidence),
+      riskLevel: getRiskLevel(confidence),
       analysis: {
         faceConsistency: 0,
         lightingConsistency: 0,
         artifactsScore: 0,
         audioAnalysis: {
-          pitchConsistency: 35,
-          frequencyDistortion: 85,
-          artificialPatterns: 80,
-          suspiciousSegments: [
-            {
-              timestamp: 5000,
-              duration: 1000,
-              confidence: 90,
-              type: 'pitch_shift'
-            },
-            {
-              timestamp: 12000,
-              duration: 1500,
-              confidence: 85,
-              type: 'voice_inconsistency'
-            },
-            {
-              timestamp: 20000,
-              duration: 2000,
-              confidence: 92,
-              type: 'formant_deviation'
-            }
-          ]
+          pitchConsistency: isManipulated ? 35 : 90,
+          frequencyDistortion: isManipulated ? 85 : 15,
+          artificialPatterns: isManipulated ? 80 : 10,
+          suspiciousSegments: generateAudioSuspiciousSegments(audioDuration, isManipulated)
         }
       },
       metadata: {
         type: 'audio',
-        duration: 30000,
+        duration: audioDuration,
         sampleRate: 44100,
         audioChannels: 2,
         audioDuration: 30
@@ -473,51 +521,31 @@ export const startWebcamAnalysis = async (
     
     if (onProgress) onProgress(50);
     
-    // Generate frame-wise confidence for more realistic analysis with higher accuracy
+    // For webcam, randomly determine if we should simulate a deepfake
+    // with a lower probability (20%) to avoid too many false positives
+    const isManipulated = Math.random() < 0.2;
+    const baseConfidence = generateConfidenceScore(isManipulated);
     const frameCount = 5;
-    const baseConfidence = 78 + Math.random() * 12; // 78-90% base confidence
     const framewiseConfidence = generateFramewiseConfidence(frameCount, baseConfidence);
     const avgConfidence = framewiseConfidence.reduce((acc, curr) => acc + curr, 0) / frameCount;
+    
+    const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(avgConfidence);
+    const highlightedAreas = generateHighlightedAreas(avgConfidence, isManipulated ? 3 : 0);
     
     if (onProgress) onProgress(100);
     
     const classification = getClassificationCategory(avgConfidence);
     const riskLevel = getRiskLevel(avgConfidence);
     
-    // Improved highlighted areas for better heatmap visualization
-    const highlightedAreas = avgConfidence > 60 ? [
-      {
-        x: 100,
-        y: 100,
-        width: 200,
-        height: 200,
-        confidence: avgConfidence
-      },
-      {
-        x: 350,
-        y: 150,
-        width: 120,
-        height: 140,
-        confidence: avgConfidence - 5
-      },
-      {
-        x: 200,
-        y: 320,
-        width: 150,
-        height: 100,
-        confidence: avgConfidence - 10
-      }
-    ] : [];
-    
     const result: DetectionResult = {
       confidence: avgConfidence,
-      isManipulated: avgConfidence > 60,
+      isManipulated,
       classification,
       riskLevel,
       analysis: {
-        faceConsistency: 95 - (avgConfidence / 2),
-        lightingConsistency: 90 - (avgConfidence / 3),
-        artifactsScore: avgConfidence,
+        faceConsistency,
+        lightingConsistency,
+        artifactsScore,
         framewiseConfidence,
         highlightedAreas
       },
@@ -530,33 +558,42 @@ export const startWebcamAnalysis = async (
     return result;
   } catch (error) {
     console.error('Webcam analysis failed:', error);
-    // Return mock data with higher accuracy
+    // Return fallback data
+    const isManipulated = Math.random() < 0.2; // Lower probability for webcam
+    const confidence = generateConfidenceScore(isManipulated);
+    
     return {
-      confidence: 82,
-      isManipulated: true,
-      classification: 'possibly_manipulated',
-      riskLevel: 'medium',
+      confidence,
+      isManipulated,
+      classification: getClassificationCategory(confidence),
+      riskLevel: getRiskLevel(confidence),
       analysis: {
-        faceConsistency: 65,
-        lightingConsistency: 60,
-        artifactsScore: 82,
-        framewiseConfidence: [82, 83, 81, 85, 80],
-        highlightedAreas: [
+        faceConsistency: isManipulated ? 65 : 95,
+        lightingConsistency: isManipulated ? 60 : 90,
+        artifactsScore: isManipulated ? 82 : 15,
+        framewiseConfidence: [
+          confidence + (Math.random() - 0.5) * 5,
+          confidence + (Math.random() - 0.5) * 5,
+          confidence + (Math.random() - 0.5) * 5,
+          confidence + (Math.random() - 0.5) * 5,
+          confidence + (Math.random() - 0.5) * 5
+        ],
+        highlightedAreas: isManipulated ? [
           {
             x: 120,
             y: 100,
             width: 220,
             height: 200,
-            confidence: 82
+            confidence: confidence
           },
           {
             x: 400,
             y: 150,
             width: 100,
             height: 120,
-            confidence: 78
+            confidence: confidence - 5
           }
-        ]
+        ] : []
       },
       metadata: {
         type: 'video',
