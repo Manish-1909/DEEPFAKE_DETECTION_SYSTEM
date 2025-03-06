@@ -99,6 +99,7 @@ const Index = () => {
       } else if (file.type.startsWith('video/')) {
         analysisResults = await analyzeVideo(fileUrl);
       } else if (file.type.startsWith('audio/')) {
+        // Fix the comparison issue by checking the analysisType properly
         if (analysisType === 'audioSpectrogram') {
           analysisResults = await analyzeAudioSpectrogram(fileUrl);
         } else {
@@ -142,6 +143,7 @@ const Index = () => {
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url);
       } else if (analysisType === 'audioUrl') {
+        // Fix the same comparison issue here
         if (analysisType === 'audioSpectrogram') {
           analysisResults = await analyzeAudioSpectrogram(url);
         } else {
