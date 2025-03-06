@@ -35,7 +35,7 @@ const UploadZone = ({ analysisType, onFileSelect, onUrlSubmit, isAnalyzing }: Up
       return { 'image/*': ['.jpeg', '.jpg', '.png'] };
     } else if (analysisType.includes('video')) {
       return { 'video/*': ['.mp4', '.webm', '.mov', '.avi'] };
-    } else if (analysisType.includes('audio') || analysisType === 'extractAudio') {
+    } else if (analysisType.includes('audio')) {
       return { 'audio/*': ['.mp3', '.wav', '.ogg', '.aac', '.flac'] };
     } else {
       return {};
@@ -64,14 +64,14 @@ const UploadZone = ({ analysisType, onFileSelect, onUrlSubmit, isAnalyzing }: Up
   const getAcceptedFileTypes = () => {
     if (analysisType.includes('image')) return 'JPG, PNG';
     if (analysisType.includes('video')) return 'MP4, WEBM, MOV, AVI';
-    if (analysisType.includes('audio') || analysisType === 'extractAudio') return 'MP3, WAV, OGG, AAC, FLAC';
+    if (analysisType.includes('audio')) return 'MP3, WAV, OGG, AAC, FLAC';
     return '';
   };
 
   const getFileIcon = () => {
     if (analysisType.includes('image')) return <FileImage className="w-12 h-12 text-primary mx-auto mb-4" />;
     if (analysisType.includes('video')) return <FileVideo className="w-12 h-12 text-primary mx-auto mb-4" />;
-    if (analysisType.includes('audio') || analysisType === 'extractAudio') return <Headphones className="w-12 h-12 text-primary mx-auto mb-4" />;
+    if (analysisType.includes('audio')) return <Headphones className="w-12 h-12 text-primary mx-auto mb-4" />;
     return <Upload className="w-12 h-12 text-primary mx-auto mb-4" />;
   };
 
