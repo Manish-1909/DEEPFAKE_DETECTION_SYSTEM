@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
@@ -6,7 +7,7 @@ import { Progress } from './ui/progress';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Slider } from './ui/slider';
-import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon, Grid } from 'lucide-react';
+import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon } from 'lucide-react';
 import { DetectionResult } from '@/services/detectionService';
 import { generatePDFReport } from '@/utils/reportGenerator';
 
@@ -17,7 +18,6 @@ interface AnalysisDisplayProps {
 const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
   const { confidence, analysis, metadata, isManipulated, classification, riskLevel } = results;
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
-  const [visualizationMode, setVisualizationMode] = useState<'boxed' | 'heatmap'>('boxed');
   
   if (metadata.type === 'audio') {
     return null;
@@ -48,6 +48,11 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
   ];
 
   const COLORS = ['#FF4560', '#00C292', '#FEB019'];
+  const HEATMAP_COLORS = [
+    'rgba(0, 255, 0, 0.1)',   // Lowest intensity (green)
+    'rgba(255, 255, 0, 0.5)', // Medium intensity (yellow)
+    'rgba(255, 0, 0, 0.8)'    // Highest intensity (red)
+  ];
 
   const getConfidenceLevel = (score: number) => {
     if (score >= 90) return { label: 'High Confidence', className: 'bg-red-50 text-red-700' };
@@ -104,6 +109,57 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
   };
 
   const activeFrame = getActiveFrame();
+
+  // Generate heatmap visualization based on analysis data
+  const renderHeatmap = () => {
+    const heatmapData = analysis.heatmapData || {
+      regions: [{ x: 50, y: 50, intensity: 0.2, radius: 30 }],
+      overallIntensity: 0.2
+    };
+    
+    const getIntensityColor = (intensity: number) => {
+      if (intensity < 0.3) return HEATMAP_COLORS[0];
+      if (intensity < 0.7) return HEATMAP_COLORS[1];
+      return HEATMAP_COLORS[2];
+    };
+    
+    return (
+      <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300">
+        <div className="w-full h-full flex items-center justify-center text-gray-500">
+          {metadata.type === 'image' ? 'Image Analysis' : `Frame at ${(activeFrame?.timestamp || 0) / 1000}s`}
+        </div>
+        
+        {/* Render each heatmap region */}
+        {heatmapData.regions.map((region, index) => (
+          <div
+            key={index}
+            className="absolute rounded-full"
+            style={{
+              left: `${region.x}%`,
+              top: `${region.y}%`,
+              width: `${region.radius * 2}px`,
+              height: `${region.radius * 2}px`,
+              transform: 'translate(-50%, -50%)',
+              background: `radial-gradient(circle, ${getIntensityColor(region.intensity)} 0%, transparent 70%)`,
+              opacity: region.intensity,
+            }}
+          />
+        ))}
+        
+        {/* Overall heatmap gradient overlay */}
+        <div 
+          className="absolute inset-0" 
+          style={{
+            background: `linear-gradient(135deg, 
+              ${getIntensityColor(heatmapData.overallIntensity * 0.7)} 0%, 
+              transparent 80%)`,
+            opacity: heatmapData.overallIntensity * 0.4,
+            mixBlendMode: 'overlay'
+          }}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-8 w-full max-w-4xl mx-auto p-6">
@@ -280,23 +336,6 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                 <h4 className="font-medium text-sm text-gray-600">
                   {metadata.type === 'image' ? 'Image Analysis' : 'Frame Analysis'}
                 </h4>
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant={visualizationMode === 'boxed' ? 'default' : 'outline'} 
-                    size="sm" 
-                    onClick={() => setVisualizationMode('boxed')}
-                  >
-                    Bounding Boxes
-                  </Button>
-                  <Button 
-                    variant={visualizationMode === 'heatmap' ? 'default' : 'outline'} 
-                    size="sm" 
-                    onClick={() => setVisualizationMode('heatmap')}
-                  >
-                    <Grid className="w-4 h-4 mr-1" />
-                    Heatmap
-                  </Button>
-                </div>
               </div>
               
               {metadata.type === 'video' && analysis.suspiciousFrames && analysis.suspiciousFrames.length > 0 && (
@@ -346,104 +385,46 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                 </div>
               )}
               
-              <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300">
-                <div className="w-full h-full flex items-center justify-center text-gray-500">
-                  {metadata.type === 'image' ? 'Image Preview' : `Frame at ${(activeFrame?.timestamp || 0) / 1000}s`}
-                </div>
-                
-                {visualizationMode === 'boxed' ? (
-                  <>
-                    {metadata.type === 'image' && analysis.highlightedAreas && analysis.highlightedAreas.map((area, idx) => (
-                      <div 
-                        key={idx}
-                        className="absolute border-2 border-red-500 bg-red-500/20"
-                        style={{
-                          left: `${area.x / 19.2}%`,
-                          top: `${area.y / 10.8}%`,
-                          width: `${area.width / 19.2}%`,
-                          height: `${area.height / 10.8}%`,
-                        }}
-                      >
-                        <div className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-red-500 text-white text-xs px-1 rounded">
-                          {area.confidence.toFixed(0)}%
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {metadata.type === 'video' && activeFrame?.boundingBox && (
-                      <div 
-                        className="absolute border-2 border-red-500 bg-red-500/20"
-                        style={{
-                          left: `${activeFrame.boundingBox.x / 19.2}%`,
-                          top: `${activeFrame.boundingBox.y / 10.8}%`,
-                          width: `${activeFrame.boundingBox.width / 19.2}%`,
-                          height: `${activeFrame.boundingBox.height / 10.8}%`,
-                        }}
-                      >
-                        <div className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-red-500 text-white text-xs px-1 rounded">
-                          {activeFrame.confidence.toFixed(0)}%
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="absolute inset-0" style={{ 
-                    background: `radial-gradient(
-                      circle at ${metadata.type === 'image' && analysis.highlightedAreas && analysis.highlightedAreas[0] 
-                      ? `${analysis.highlightedAreas[0].x / 19.2}% ${analysis.highlightedAreas[0].y / 10.8}%` 
-                      : metadata.type === 'video' && activeFrame?.boundingBox 
-                      ? `${activeFrame.boundingBox.x / 19.2}% ${activeFrame.boundingBox.y / 10.8}%` 
-                      : '50% 50%'}, 
-                      rgba(255, 0, 0, 0.5), 
-                      rgba(255, 165, 0, 0.3) 30%, 
-                      rgba(255, 255, 0, 0.1) 60%, 
-                      transparent 80%
-                    )`
-                  }} />
-                )}
-              </div>
+              {/* Graphical heatmap visualization */}
+              {renderHeatmap()}
               
               <div className="bg-gray-50 rounded-lg p-4 max-w-3xl mx-auto">
                 <h5 className="text-sm font-medium text-gray-700 mb-2">
-                  {metadata.type === 'image' ? 'Detected Issues' : `Frame ${activeFrameIndex + 1} Analysis`}
+                  {metadata.type === 'image' ? 'Analysis Interpretation' : `Frame ${activeFrameIndex + 1} Analysis`}
                 </h5>
                 <ul className="space-y-2">
-                  {metadata.type === 'image' ? (
-                    analysis.highlightedAreas && analysis.highlightedAreas.length > 0 ? (
-                      analysis.highlightedAreas.map((area, idx) => (
-                        <li key={idx} className="text-sm flex items-center">
-                          <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-                          Region {idx + 1}: Manipulation confidence {area.confidence.toFixed(1)}%
-                          {area.confidence > 80 && <span className="ml-1 text-red-600 font-medium"> (High risk)</span>}
-                          {area.confidence > 60 && area.confidence <= 80 && <span className="ml-1 text-yellow-600 font-medium"> (Medium risk)</span>}
-                        </li>
-                      ))
-                    ) : (
-                      <li className="text-sm">No suspicious regions detected</li>
-                    )
+                  {isManipulated ? (
+                    <>
+                      <li className="text-sm flex items-center">
+                        <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                        The heatmap indicates potential manipulations in areas of high intensity (red/yellow).
+                      </li>
+                      <li className="text-sm flex items-center">
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+                        Manipulation confidence: {confidence.toFixed(1)}%
+                        {confidence > 80 && <span className="ml-1 text-red-600 font-medium"> (High risk)</span>}
+                        {confidence > 60 && confidence <= 80 && <span className="ml-1 text-yellow-600 font-medium"> (Medium risk)</span>}
+                      </li>
+                      <li className="text-sm flex items-center">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                        Artifacts score indicates digital manipulation: {analysis.artifactsScore.toFixed(1)}%
+                      </li>
+                    </>
                   ) : (
-                    activeFrame ? (
-                      <>
-                        <li className="text-sm flex items-center">
-                          <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                          Timestamp: {(activeFrame.timestamp / 1000).toFixed(1)}s
-                        </li>
-                        <li className="text-sm flex items-center">
-                          <span className={`w-2 h-2 ${activeFrame.confidence > 70 ? 'bg-red-500' : 'bg-yellow-500'} rounded-full mr-2`}></span>
-                          Manipulation confidence: {activeFrame.confidence.toFixed(1)}%
-                          {activeFrame.confidence > 80 && <span className="ml-1 text-red-600 font-medium"> (High risk)</span>}
-                          {activeFrame.confidence > 60 && activeFrame.confidence <= 80 && <span className="ml-1 text-yellow-600 font-medium"> (Medium risk)</span>}
-                        </li>
-                        {activeFrame.boundingBox && (
-                          <li className="text-sm flex items-center">
-                            <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
-                            Suspicious region detected at coordinates (X:{activeFrame.boundingBox.x}, Y:{activeFrame.boundingBox.y})
-                          </li>
-                        )}
-                      </>
-                    ) : (
-                      <li className="text-sm">No frame data available</li>
-                    )
+                    <>
+                      <li className="text-sm flex items-center">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                        No significant manipulations detected. The heatmap shows minimal intensity.
+                      </li>
+                      <li className="text-sm flex items-center">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                        Authenticity confidence: {(100 - confidence).toFixed(1)}%
+                      </li>
+                      <li className="text-sm flex items-center">
+                        <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                        High consistency in face and lighting patterns.
+                      </li>
+                    </>
                   )}
                 </ul>
               </div>

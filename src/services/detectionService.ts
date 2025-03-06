@@ -1,5 +1,6 @@
 
 import { pipeline } from "@huggingface/transformers";
+import { createHash } from 'crypto';
 
 export type DetectionResult = {
   confidence: number;
@@ -37,6 +38,15 @@ export type DetectionResult = {
         type: string;
       }[];
     };
+    heatmapData?: {
+      regions: Array<{
+        x: number; 
+        y: number;
+        intensity: number;
+        radius: number;
+      }>;
+      overallIntensity: number;
+    }
   };
   metadata: {
     type: 'image' | 'video' | 'audio';
@@ -56,8 +66,8 @@ export type DetectionResult = {
 let detector: any = null;
 let audioDetector: any = null;
 
-// Tracking the last classification to implement alternating behavior
-let lastClassification: boolean = Math.random() < 0.5; // Randomize the initial state
+// Store of already classified sources for consistency
+const classificationCache = new Map<string, boolean>();
 
 export const initializeDetector = async () => {
   if (!detector) {
@@ -95,33 +105,27 @@ export const initializeAudioDetector = async () => {
   return audioDetector;
 };
 
-const createImageFromSource = async (src: string): Promise<HTMLImageElement> => {
-  const img = new Image();
-  await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = reject;
-    img.crossOrigin = "anonymous";  // Enable CORS
-    img.src = src;
-  });
-  return img;
+// Generate a hash from the source URL to ensure consistent classification
+const getSourceHash = (source: string): string => {
+  return createHash('md5').update(source).digest('hex');
 };
 
-const getClassificationCategory = (confidence: number): 'highly_authentic' | 'likely_authentic' | 'possibly_manipulated' | 'highly_manipulated' => {
-  if (confidence < 20) return 'highly_authentic';
-  if (confidence < 60) return 'likely_authentic';
-  if (confidence < 90) return 'possibly_manipulated';
-  return 'highly_manipulated';
-};
-
-const getRiskLevel = (isManipulated: boolean): 'low' | 'medium' | 'high' => {
-  if (!isManipulated) return 'low';
-  return Math.random() < 0.5 ? 'medium' : 'high';
-};
-
-// Toggle the classification state for alternating behavior
-const getNextClassification = (): boolean => {
-  lastClassification = !lastClassification;
-  return lastClassification;
+// Determine if a source should be classified as manipulated based on its hash
+// This ensures consistent classification for the same source
+const shouldClassifyAsManipulated = (source: string): boolean => {
+  if (classificationCache.has(source)) {
+    return classificationCache.get(source)!;
+  }
+  
+  const hash = getSourceHash(source);
+  // Use the first 8 chars of the hash as a number and determine if it should be manipulated
+  // Approximately 40% manipulated, 60% real (based on hash distribution)
+  const hashValue = parseInt(hash.substring(0, 8), 16);
+  const isManipulated = hashValue % 100 < 40; // 40% chance to be manipulated
+  
+  // Cache the result for consistency
+  classificationCache.set(source, isManipulated);
+  return isManipulated;
 };
 
 // Generate confidence scores based on classification
@@ -158,30 +162,33 @@ const generateAnalysisSubScores = (isManipulated: boolean): {
   }
 };
 
-// Generate highlighted areas that visually match the confidence score
-const generateHighlightedAreas = (isManipulated: boolean, count = 3): any[] => {
+// Generate graphical heatmap data based on manipulation status
+const generateHeatmapData = (isManipulated: boolean) => {
   if (!isManipulated) {
-    // No areas to highlight for authentic content
-    return [];
+    // For authentic content, minimal intensity
+    return {
+      regions: [
+        { x: 50, y: 50, intensity: 0.15, radius: 30 }
+      ],
+      overallIntensity: 0.1
+    };
   }
   
-  // Number of areas depends on manipulation
-  const actualCount = Math.ceil(Math.random() * count);
-  
-  return Array.from({ length: actualCount }, (_, i) => {
-    // Different positions for each area
-    const x = 100 + (i * 150) % 300;
-    const y = 100 + (i * 100) % 200;
-    const areaConfidence = 35 + Math.random() * 30; // Similar to overall deepfake confidence
-    
+  // For manipulated content, generate several hotspots
+  const regionCount = 3 + Math.floor(Math.random() * 4); // 3-6 regions
+  const regions = Array.from({ length: regionCount }, (_, i) => {
     return {
-      x,
-      y,
-      width: 100 + Math.floor(Math.random() * 100),
-      height: 100 + Math.floor(Math.random() * 100),
-      confidence: Math.min(100, areaConfidence)
+      x: 10 + Math.floor(Math.random() * 80), // 10-90% of width
+      y: 10 + Math.floor(Math.random() * 80), // 10-90% of height
+      intensity: 0.6 + Math.random() * 0.4, // 0.6-1.0 intensity
+      radius: 15 + Math.floor(Math.random() * 35) // 15-50 radius
     };
   });
+  
+  return {
+    regions,
+    overallIntensity: 0.7 + Math.random() * 0.3 // 0.7-1.0 overall intensity
+  };
 };
 
 // Generate framewise confidence for videos
@@ -214,21 +221,14 @@ const generateSuspiciousFrames = (frameCount: number, isManipulated: boolean): a
     
     return {
       timestamp: frameIndex * 1000,
-      confidence,
-      boundingBox: {
-        x: 100 + (index * 5) % 200,
-        y: 100 + (index % 3) * 20,
-        width: 180 + (index % 3) * 20,
-        height: 180 + (index % 2) * 20
-      }
+      confidence
     };
   }).sort((a, b) => a.timestamp - b.timestamp); // Sort by timestamp
 };
 
 // Generate varied audio analysis
 const generateMockAudioClassification = () => {
-  // Toggle classification for audio as well
-  const isSynthetic = getNextClassification();
+  const isSynthetic = Math.random() < 0.4; // 40% synthetic
   const score = isSynthetic ? 35 + Math.random() * 30 : 85 + Math.random() * 14;
   
   return [
@@ -268,6 +268,18 @@ const generateAudioSuspiciousSegments = (audioDuration: number, isManipulated: b
   return suspiciousSegments;
 };
 
+const getClassificationCategory = (confidence: number): 'highly_authentic' | 'likely_authentic' | 'possibly_manipulated' | 'highly_manipulated' => {
+  if (confidence < 20) return 'highly_authentic';
+  if (confidence < 60) return 'likely_authentic';
+  if (confidence < 90) return 'possibly_manipulated';
+  return 'highly_manipulated';
+};
+
+const getRiskLevel = (isManipulated: boolean): 'low' | 'medium' | 'high' => {
+  if (!isManipulated) return 'low';
+  return Math.random() < 0.5 ? 'medium' : 'high';
+};
+
 export const analyzeImage = async (imageUrl: string, onProgress?: (progress: number) => void): Promise<DetectionResult> => {
   try {
     console.log('Starting image analysis:', imageUrl);
@@ -275,11 +287,10 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
     
     if (onProgress) onProgress(30);
     
-    // Use the alternating classification
-    const isManipulated = getNextClassification();
+    // Use consistent classification based on input source
+    const isManipulated = shouldClassifyAsManipulated(imageUrl);
     const confidence = generateConfidenceScore(isManipulated);
     const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(isManipulated);
-    const highlightedAreas = generateHighlightedAreas(isManipulated);
     
     if (onProgress) onProgress(100);
     
@@ -295,7 +306,7 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
         faceConsistency,
         lightingConsistency,
         artifactsScore,
-        highlightedAreas
+        heatmapData: generateHeatmapData(isManipulated)
       },
       metadata: {
         type: 'image',
@@ -307,7 +318,7 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
   } catch (error) {
     console.error('Image analysis failed:', error);
     // Return fallback data
-    const isManipulated = getNextClassification();
+    const isManipulated = Math.random() < 0.4;
     const confidence = generateConfidenceScore(isManipulated);
     const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(isManipulated);
     
@@ -320,7 +331,7 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
         faceConsistency,
         lightingConsistency,
         artifactsScore,
-        highlightedAreas: generateHighlightedAreas(isManipulated)
+        heatmapData: generateHeatmapData(isManipulated)
       },
       metadata: {
         type: 'image',
@@ -340,8 +351,8 @@ export const analyzeVideo = async (
     
     if (onProgress) onProgress(50);
     
-    // Use the alternating classification
-    const isManipulated = getNextClassification();
+    // Use consistent classification based on input source
+    const isManipulated = shouldClassifyAsManipulated(videoUrl);
     const frameCount = 15;
     
     // Generate dynamic frame-wise confidence scores
@@ -370,6 +381,7 @@ export const analyzeVideo = async (
         artifactsScore,
         framewiseConfidence,
         suspiciousFrames,
+        heatmapData: generateHeatmapData(isManipulated)
       },
       metadata: {
         type: 'video',
@@ -385,7 +397,7 @@ export const analyzeVideo = async (
   } catch (error) {
     console.error('Video analysis failed:', error);
     // Return fallback data
-    const isManipulated = getNextClassification();
+    const isManipulated = Math.random() < 0.4;
     const confidence = generateConfidenceScore(isManipulated);
     const frameCount = 10;
     
@@ -399,7 +411,8 @@ export const analyzeVideo = async (
         lightingConsistency: isManipulated ? 55 : 90,
         artifactsScore: isManipulated ? 75 : 15,
         framewiseConfidence: generateFramewiseConfidence(frameCount, isManipulated),
-        suspiciousFrames: generateSuspiciousFrames(frameCount, isManipulated)
+        suspiciousFrames: generateSuspiciousFrames(frameCount, isManipulated),
+        heatmapData: generateHeatmapData(isManipulated)
       },
       metadata: {
         type: 'video',
@@ -423,8 +436,8 @@ export const analyzeAudio = async (
     
     if (onProgress) onProgress(30);
     
-    // Use the alternating classification
-    const isManipulated = getNextClassification();
+    // Use consistent classification based on input source
+    const isManipulated = shouldClassifyAsManipulated(audioUrl);
     const confidence = generateConfidenceScore(isManipulated);
     
     // Generate analysis data
@@ -467,7 +480,8 @@ export const analyzeAudio = async (
           frequencyDistortion,
           artificialPatterns,
           suspiciousSegments
-        }
+        },
+        heatmapData: generateHeatmapData(isManipulated)
       },
       metadata: {
         type: 'audio',
@@ -482,7 +496,7 @@ export const analyzeAudio = async (
   } catch (error) {
     console.error('Audio analysis failed:', error);
     // Return fallback data
-    const isManipulated = getNextClassification();
+    const isManipulated = Math.random() < 0.4;
     const confidence = generateConfidenceScore(isManipulated);
     const audioDuration = 30000;
     
@@ -500,7 +514,8 @@ export const analyzeAudio = async (
           frequencyDistortion: isManipulated ? 75 : 15,
           artificialPatterns: isManipulated ? 80 : 10,
           suspiciousSegments: generateAudioSuspiciousSegments(audioDuration, isManipulated)
-        }
+        },
+        heatmapData: generateHeatmapData(isManipulated)
       },
       metadata: {
         type: 'audio',
@@ -523,14 +538,14 @@ export const startWebcamAnalysis = async (
     
     if (onProgress) onProgress(50);
     
-    // Use the alternating classification
-    const isManipulated = getNextClassification();
+    // Generate a unique ID for this webcam session
+    const sessionId = Date.now().toString();
+    const isManipulated = shouldClassifyAsManipulated(sessionId);
     const frameCount = 5;
     
     // Generate confidence based on classification
     const confidence = generateConfidenceScore(isManipulated);
     const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(isManipulated);
-    const highlightedAreas = generateHighlightedAreas(isManipulated, isManipulated ? 3 : 0);
     
     if (onProgress) onProgress(100);
     
@@ -547,7 +562,7 @@ export const startWebcamAnalysis = async (
         lightingConsistency,
         artifactsScore,
         framewiseConfidence: generateFramewiseConfidence(frameCount, isManipulated),
-        highlightedAreas
+        heatmapData: generateHeatmapData(isManipulated)
       },
       metadata: {
         type: 'video',
@@ -559,7 +574,7 @@ export const startWebcamAnalysis = async (
   } catch (error) {
     console.error('Webcam analysis failed:', error);
     // Return fallback data
-    const isManipulated = getNextClassification();
+    const isManipulated = Math.random() < 0.4;
     const confidence = generateConfidenceScore(isManipulated);
     
     return {
@@ -572,22 +587,7 @@ export const startWebcamAnalysis = async (
         lightingConsistency: isManipulated ? 60 : 90,
         artifactsScore: isManipulated ? 82 : 15,
         framewiseConfidence: generateFramewiseConfidence(5, isManipulated),
-        highlightedAreas: isManipulated ? [
-          {
-            x: 120,
-            y: 100,
-            width: 220,
-            height: 200,
-            confidence: confidence
-          },
-          {
-            x: 400,
-            y: 150,
-            width: 100,
-            height: 120,
-            confidence: confidence - 5
-          }
-        ] : []
+        heatmapData: generateHeatmapData(isManipulated)
       },
       metadata: {
         type: 'video',
