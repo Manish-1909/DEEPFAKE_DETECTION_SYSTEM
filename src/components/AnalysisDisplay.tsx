@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
@@ -7,7 +6,7 @@ import { Progress } from './ui/progress';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Slider } from './ui/slider';
-import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon, HeatMap } from 'lucide-react';
+import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon, HeatMap, Grid } from 'lucide-react';
 import { DetectionResult } from '@/services/detectionService';
 import { generatePDFReport } from '@/utils/reportGenerator';
 
@@ -20,7 +19,6 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const [visualizationMode, setVisualizationMode] = useState<'boxed' | 'heatmap'>('boxed');
   
-  // If audio type, we shouldn't display this component
   if (metadata.type === 'audio') {
     return null;
   }
@@ -295,7 +293,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                     size="sm" 
                     onClick={() => setVisualizationMode('heatmap')}
                   >
-                    <HeatMap className="w-4 h-4 mr-1" />
+                    <Grid className="w-4 h-4 mr-1" />
                     Heatmap
                   </Button>
                 </div>
@@ -349,15 +347,12 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
               )}
               
               <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300">
-                {/* This would be a video frame or image, using a placeholder */}
                 <div className="w-full h-full flex items-center justify-center text-gray-500">
                   {metadata.type === 'image' ? 'Image Preview' : `Frame at ${(activeFrame?.timestamp || 0) / 1000}s`}
                 </div>
                 
-                {/* Visualization overlay */}
                 {visualizationMode === 'boxed' ? (
                   <>
-                    {/* Overlay for highlighted areas (boxed mode) */}
                     {metadata.type === 'image' && analysis.highlightedAreas && analysis.highlightedAreas.map((area, idx) => (
                       <div 
                         key={idx}
@@ -375,7 +370,6 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                       </div>
                     ))}
                     
-                    {/* Overlay for video frames (boxed mode) */}
                     {metadata.type === 'video' && activeFrame?.boundingBox && (
                       <div 
                         className="absolute border-2 border-red-500 bg-red-500/20"
@@ -393,7 +387,6 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                     )}
                   </>
                 ) : (
-                  // Heatmap visualization mode
                   <div className="absolute inset-0" style={{ 
                     background: `radial-gradient(
                       circle at ${metadata.type === 'image' && analysis.highlightedAreas && analysis.highlightedAreas[0] 
