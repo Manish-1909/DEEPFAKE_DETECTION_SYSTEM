@@ -1,11 +1,11 @@
 
 import { useState } from 'react';
-import { Camera, Image, Video, Link2, Video as VideoIcon, Headphones, Music, FileAudio, AudioLines } from 'lucide-react';
+import { Camera, Image, Video, Link2, Video as VideoIcon, Headphones, Music } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
 
-export type AnalysisType = 'image' | 'video' | 'webcam' | 'imageUrl' | 'videoUrl' | 'audio' | 'audioUrl' | 'extractAudio' | 'audioSpectrogram';
+export type AnalysisType = 'image' | 'video' | 'webcam' | 'imageUrl' | 'videoUrl' | 'audio' | 'audioUrl';
 
 interface AnalysisOptionsProps {
   onSelect: (type: AnalysisType) => void;
@@ -27,12 +27,10 @@ const AnalysisOptions = ({ onSelect }: AnalysisOptionsProps) => {
     { type: 'image' as AnalysisType, icon: Image, label: 'Process image file' },
     { type: 'video' as AnalysisType, icon: VideoIcon, label: 'Process video file' },
     { type: 'audio' as AnalysisType, icon: Headphones, label: 'Process audio file' },
-    { type: 'audioSpectrogram' as AnalysisType, icon: AudioLines, label: 'Audio spectrogram analysis' },
     { type: 'webcam' as AnalysisType, icon: Camera, label: 'Capture live webcam' },
     { type: 'imageUrl' as AnalysisType, icon: Link2, label: 'Analyze image URL' },
     { type: 'videoUrl' as AnalysisType, icon: Video, label: 'Analyze video URL' },
     { type: 'audioUrl' as AnalysisType, icon: Music, label: 'Analyze audio URL' },
-    { type: 'extractAudio' as AnalysisType, icon: FileAudio, label: 'Extract & analyze audio' },
   ];
 
   return (
