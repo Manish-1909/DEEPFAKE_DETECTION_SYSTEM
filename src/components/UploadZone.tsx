@@ -1,7 +1,7 @@
 
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, Link } from 'lucide-react';
+import { Upload, Link, FileVideo, FileImage, Headphones } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -30,11 +30,21 @@ const UploadZone = ({ analysisType, onFileSelect, onUrlSubmit, isAnalyzing }: Up
     }
   }, [onFileSelect]);
 
+  const getAcceptConfig = () => {
+    if (analysisType.includes('image')) {
+      return { 'image/*': ['.jpeg', '.jpg', '.png'] };
+    } else if (analysisType.includes('video')) {
+      return { 'video/*': ['.mp4', '.webm', '.mov', '.avi'] };
+    } else if (analysisType.includes('audio') || analysisType === 'extractAudio') {
+      return { 'audio/*': ['.mp3', '.wav', '.ogg', '.aac', '.flac'] };
+    } else {
+      return {};
+    }
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: analysisType.includes('image') 
-      ? { 'image/*': ['.jpeg', '.jpg', '.png'] }
-      : { 'video/*': ['.mp4', '.webm'] },
+    accept: getAcceptConfig(),
     maxFiles: 1,
     disabled: isAnalyzing
   });
@@ -52,12 +62,22 @@ const UploadZone = ({ analysisType, onFileSelect, onUrlSubmit, isAnalyzing }: Up
   };
 
   const getAcceptedFileTypes = () => {
-    return analysisType.includes('image') ? 'JPG, PNG' : 'MP4, WEBM';
+    if (analysisType.includes('image')) return 'JPG, PNG';
+    if (analysisType.includes('video')) return 'MP4, WEBM, MOV, AVI';
+    if (analysisType.includes('audio') || analysisType === 'extractAudio') return 'MP3, WAV, OGG, AAC, FLAC';
+    return '';
+  };
+
+  const getFileIcon = () => {
+    if (analysisType.includes('image')) return <FileImage className="w-12 h-12 text-primary mx-auto mb-4" />;
+    if (analysisType.includes('video')) return <FileVideo className="w-12 h-12 text-primary mx-auto mb-4" />;
+    if (analysisType.includes('audio') || analysisType === 'extractAudio') return <Headphones className="w-12 h-12 text-primary mx-auto mb-4" />;
+    return <Upload className="w-12 h-12 text-primary mx-auto mb-4" />;
   };
 
   return (
     <div className="space-y-8 w-full max-w-3xl mx-auto p-6">
-      {!analysisType.includes('Url') && (
+      {!analysisType.includes('Url') && analysisType !== 'webcam' && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -74,7 +94,7 @@ const UploadZone = ({ analysisType, onFileSelect, onUrlSubmit, isAnalyzing }: Up
               animate={{ scale: isDragActive ? 1.02 : 1 }}
               transition={{ duration: 0.2 }}
             >
-              <Upload className="w-12 h-12 text-primary mx-auto mb-4" />
+              {getFileIcon()}
               <h3 className="text-xl font-semibold mb-2">
                 {isDragActive ? 'Drop files here' : `Drop ${analysisType} here`}
               </h3>
@@ -99,17 +119,17 @@ const UploadZone = ({ analysisType, onFileSelect, onUrlSubmit, isAnalyzing }: Up
           <div className="flex-1">
             <Input
               type="url"
-              placeholder="Enter URL for analysis"
+              placeholder={`Enter ${analysisType.replace('Url', '')} URL for analysis`}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="input-focus"
-              disabled={isAnalyzing}
+              disabled={isAnalyzing || !analysisType.includes('Url')}
             />
           </div>
           <Button 
             type="submit" 
             className="bg-primary hover:bg-primary/90"
-            disabled={isAnalyzing || !url}
+            disabled={isAnalyzing || !url || !analysisType.includes('Url')}
           >
             <Link className="w-4 h-4 mr-2" />
             Analyze URL

@@ -7,7 +7,7 @@ import { Progress } from './ui/progress';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Slider } from './ui/slider';
-import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon } from 'lucide-react';
+import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon, HeatMap } from 'lucide-react';
 import { DetectionResult } from '@/services/detectionService';
 import { generatePDFReport } from '@/utils/reportGenerator';
 
@@ -16,16 +16,27 @@ interface AnalysisDisplayProps {
 }
 
 const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
-  const { confidence, analysis, metadata, isManipulated } = results;
+  const { confidence, analysis, metadata, isManipulated, classification, riskLevel } = results;
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
+  const [visualizationMode, setVisualizationMode] = useState<'boxed' | 'heatmap'>('boxed');
   
-  const timelineData = analysis.suspiciousFrames || [
+  // If audio type, we shouldn't display this component
+  if (metadata.type === 'audio') {
+    return null;
+  }
+  
+  const framewiseData = analysis.framewiseConfidence?.map((confidence, index) => ({
+    timestamp: index * 1000,
+    confidence,
+  })) || [];
+  
+  const timelineData = analysis.suspiciousFrames || (framewiseData.length > 0 ? framewiseData : [
     { timestamp: 0, confidence: confidence },
     { timestamp: 1000, confidence: confidence - Math.random() * 5 },
     { timestamp: 2000, confidence: confidence - Math.random() * 3 },
     { timestamp: 3000, confidence: confidence + Math.random() * 2 },
     { timestamp: 4000, confidence: confidence },
-  ];
+  ]);
 
   const pieChartData = [
     { name: 'Manipulated', value: confidence },
@@ -41,12 +52,31 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
   const COLORS = ['#FF4560', '#00C292', '#FEB019'];
 
   const getConfidenceLevel = (score: number) => {
-    if (score >= 90) return { label: 'High Confidence', className: 'bg-green-50 text-green-700' };
-    if (score >= 70) return { label: 'Medium Confidence', className: 'bg-yellow-50 text-yellow-700' };
-    return { label: 'Low Confidence', className: 'bg-red-50 text-red-700' };
+    if (score >= 90) return { label: 'High Confidence', className: 'bg-red-50 text-red-700' };
+    if (score >= 60) return { label: 'Medium Confidence', className: 'bg-yellow-50 text-yellow-700' };
+    return { label: 'Low Confidence', className: 'bg-green-50 text-green-700' };
   };
 
   const confidenceLevel = getConfidenceLevel(confidence);
+
+  const getClassificationLabel = (classification: string) => {
+    switch (classification) {
+      case 'highly_authentic': return 'Highly Authentic';
+      case 'likely_authentic': return 'Likely Authentic';
+      case 'possibly_manipulated': return 'Possibly Manipulated';
+      case 'highly_manipulated': return 'Highly Manipulated';
+      default: return 'Unknown';
+    }
+  };
+
+  const getRiskLabel = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'low': return 'Low Risk';
+      case 'medium': return 'Medium Risk';
+      case 'high': return 'High Risk';
+      default: return 'Unknown';
+    }
+  };
 
   const handleDownloadReport = () => {
     generatePDFReport(results);
@@ -92,8 +122,15 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
               <Badge variant="outline" className="bg-blue-50 text-blue-700">
                 {metadata.type.toUpperCase()}
               </Badge>
-              <Badge variant="outline" className={results.isManipulated ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}>
-                {results.isManipulated ? 'Potentially Manipulated' : 'Likely Authentic'}
+              <Badge variant="outline" className={isManipulated ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}>
+                {getClassificationLabel(classification)}
+              </Badge>
+              <Badge variant="outline" className={
+                riskLevel === 'high' ? 'bg-red-50 text-red-700' : 
+                riskLevel === 'medium' ? 'bg-yellow-50 text-yellow-700' : 
+                'bg-green-50 text-green-700'
+              }>
+                {getRiskLabel(riskLevel)}
               </Badge>
             </div>
             <Button onClick={handleDownloadReport} variant="outline" className="gap-2">
@@ -103,7 +140,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
           </div>
         </div>
 
-        {results.isManipulated && (
+        {isManipulated && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
             <div>
@@ -137,9 +174,18 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                 <h4 className="font-medium text-sm text-gray-600">Manipulation Probability</h4>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-3xl font-semibold">{confidence.toFixed(1)}%</span>
-                  <Badge variant="outline" className={confidenceLevel.className}>
-                    {confidenceLevel.label}
-                  </Badge>
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className={confidenceLevel.className}>
+                      {confidenceLevel.label}
+                    </Badge>
+                    <Badge variant="outline" className={
+                      riskLevel === 'high' ? 'bg-red-50 text-red-700' : 
+                      riskLevel === 'medium' ? 'bg-yellow-50 text-yellow-700' : 
+                      'bg-green-50 text-green-700'
+                    }>
+                      {getRiskLabel(riskLevel)}
+                    </Badge>
+                  </div>
                 </div>
                 <Progress value={confidence} className="h-2" />
               </div>
@@ -180,12 +226,10 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                         <span className="font-medium">Overall Confidence:</span> {confidence.toFixed(1)}%
                       </li>
                       <li className="text-sm">
-                        <span className="font-medium">Classification:</span> {results.isManipulated ? 'Manipulated' : 'Authentic'}
+                        <span className="font-medium">Classification:</span> {getClassificationLabel(classification)}
                       </li>
                       <li className="text-sm">
-                        <span className="font-medium">Risk Level:</span> {
-                          confidence > 90 ? 'High' : confidence > 70 ? 'Medium' : 'Low'
-                        }
+                        <span className="font-medium">Risk Level:</span> {getRiskLabel(riskLevel)}
                       </li>
                     </ul>
                   </div>
@@ -234,9 +278,28 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
           
           <TabsContent value="frames" className="space-y-6">
             <div className="space-y-4">
-              <h4 className="font-medium text-sm text-gray-600">
-                {metadata.type === 'image' ? 'Image Analysis' : 'Frame Analysis'}
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm text-gray-600">
+                  {metadata.type === 'image' ? 'Image Analysis' : 'Frame Analysis'}
+                </h4>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant={visualizationMode === 'boxed' ? 'default' : 'outline'} 
+                    size="sm" 
+                    onClick={() => setVisualizationMode('boxed')}
+                  >
+                    Bounding Boxes
+                  </Button>
+                  <Button 
+                    variant={visualizationMode === 'heatmap' ? 'default' : 'outline'} 
+                    size="sm" 
+                    onClick={() => setVisualizationMode('heatmap')}
+                  >
+                    <HeatMap className="w-4 h-4 mr-1" />
+                    Heatmap
+                  </Button>
+                </div>
+              </div>
               
               {metadata.type === 'video' && analysis.suspiciousFrames && analysis.suspiciousFrames.length > 0 && (
                 <div className="space-y-4">
@@ -265,7 +328,9 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                     </div>
                     <Badge 
                       variant="outline" 
-                      className={activeFrame && activeFrame.confidence > 70 ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}
+                      className={activeFrame && activeFrame.confidence > 70 ? 'bg-red-50 text-red-700' : 
+                               activeFrame && activeFrame.confidence > 40 ? 'bg-yellow-50 text-yellow-700' : 
+                               'bg-green-50 text-green-700'}
                     >
                       Confidence: {activeFrame?.confidence.toFixed(1)}%
                     </Badge>
@@ -289,39 +354,59 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                   {metadata.type === 'image' ? 'Image Preview' : `Frame at ${(activeFrame?.timestamp || 0) / 1000}s`}
                 </div>
                 
-                {/* Overlay for highlighted areas */}
-                {metadata.type === 'image' && analysis.highlightedAreas && analysis.highlightedAreas.map((area, idx) => (
-                  <div 
-                    key={idx}
-                    className="absolute border-2 border-red-500 bg-red-500/20"
-                    style={{
-                      left: `${area.x / 19.2}%`,
-                      top: `${area.y / 10.8}%`,
-                      width: `${area.width / 19.2}%`,
-                      height: `${area.height / 10.8}%`,
-                    }}
-                  >
-                    <div className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-red-500 text-white text-xs px-1 rounded">
-                      {area.confidence.toFixed(0)}%
-                    </div>
-                  </div>
-                ))}
-                
-                {/* Overlay for video frames */}
-                {metadata.type === 'video' && activeFrame?.boundingBox && (
-                  <div 
-                    className="absolute border-2 border-red-500 bg-red-500/20"
-                    style={{
-                      left: `${activeFrame.boundingBox.x / 19.2}%`,
-                      top: `${activeFrame.boundingBox.y / 10.8}%`,
-                      width: `${activeFrame.boundingBox.width / 19.2}%`,
-                      height: `${activeFrame.boundingBox.height / 10.8}%`,
-                    }}
-                  >
-                    <div className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-red-500 text-white text-xs px-1 rounded">
-                      {activeFrame.confidence.toFixed(0)}%
-                    </div>
-                  </div>
+                {/* Visualization overlay */}
+                {visualizationMode === 'boxed' ? (
+                  <>
+                    {/* Overlay for highlighted areas (boxed mode) */}
+                    {metadata.type === 'image' && analysis.highlightedAreas && analysis.highlightedAreas.map((area, idx) => (
+                      <div 
+                        key={idx}
+                        className="absolute border-2 border-red-500 bg-red-500/20"
+                        style={{
+                          left: `${area.x / 19.2}%`,
+                          top: `${area.y / 10.8}%`,
+                          width: `${area.width / 19.2}%`,
+                          height: `${area.height / 10.8}%`,
+                        }}
+                      >
+                        <div className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-red-500 text-white text-xs px-1 rounded">
+                          {area.confidence.toFixed(0)}%
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Overlay for video frames (boxed mode) */}
+                    {metadata.type === 'video' && activeFrame?.boundingBox && (
+                      <div 
+                        className="absolute border-2 border-red-500 bg-red-500/20"
+                        style={{
+                          left: `${activeFrame.boundingBox.x / 19.2}%`,
+                          top: `${activeFrame.boundingBox.y / 10.8}%`,
+                          width: `${activeFrame.boundingBox.width / 19.2}%`,
+                          height: `${activeFrame.boundingBox.height / 10.8}%`,
+                        }}
+                      >
+                        <div className="absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2 bg-red-500 text-white text-xs px-1 rounded">
+                          {activeFrame.confidence.toFixed(0)}%
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  // Heatmap visualization mode
+                  <div className="absolute inset-0" style={{ 
+                    background: `radial-gradient(
+                      circle at ${metadata.type === 'image' && analysis.highlightedAreas && analysis.highlightedAreas[0] 
+                      ? `${analysis.highlightedAreas[0].x / 19.2}% ${analysis.highlightedAreas[0].y / 10.8}%` 
+                      : metadata.type === 'video' && activeFrame?.boundingBox 
+                      ? `${activeFrame.boundingBox.x / 19.2}% ${activeFrame.boundingBox.y / 10.8}%` 
+                      : '50% 50%'}, 
+                      rgba(255, 0, 0, 0.5), 
+                      rgba(255, 165, 0, 0.3) 30%, 
+                      rgba(255, 255, 0, 0.1) 60%, 
+                      transparent 80%
+                    )`
+                  }} />
                 )}
               </div>
               
@@ -336,6 +421,8 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                         <li key={idx} className="text-sm flex items-center">
                           <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
                           Region {idx + 1}: Manipulation confidence {area.confidence.toFixed(1)}%
+                          {area.confidence > 80 && <span className="ml-1 text-red-600 font-medium"> (High risk)</span>}
+                          {area.confidence > 60 && area.confidence <= 80 && <span className="ml-1 text-yellow-600 font-medium"> (Medium risk)</span>}
                         </li>
                       ))
                     ) : (
@@ -349,8 +436,10 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                           Timestamp: {(activeFrame.timestamp / 1000).toFixed(1)}s
                         </li>
                         <li className="text-sm flex items-center">
-                          <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+                          <span className={`w-2 h-2 ${activeFrame.confidence > 70 ? 'bg-red-500' : 'bg-yellow-500'} rounded-full mr-2`}></span>
                           Manipulation confidence: {activeFrame.confidence.toFixed(1)}%
+                          {activeFrame.confidence > 80 && <span className="ml-1 text-red-600 font-medium"> (High risk)</span>}
+                          {activeFrame.confidence > 60 && activeFrame.confidence <= 80 && <span className="ml-1 text-yellow-600 font-medium"> (Medium risk)</span>}
                         </li>
                         {activeFrame.boundingBox && (
                           <li className="text-sm flex items-center">
@@ -415,7 +504,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
               </div>
             </div>
             
-            {metadata.type === 'video' && (
+            {metadata.type === 'video' && analysis.framewiseConfidence && (
               <div className="space-y-4">
                 <h4 className="font-medium text-sm text-gray-600">Confidence Timeline</h4>
                 <div className="h-64 w-full">

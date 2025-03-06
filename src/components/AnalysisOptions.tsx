@@ -1,11 +1,11 @@
 
 import { useState } from 'react';
-import { Camera, Image, Video, Link2, Video as VideoIcon } from 'lucide-react';
+import { Camera, Image, Video, Link2, Video as VideoIcon, Headphones, Music } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { toast } from './ui/use-toast';
 
-export type AnalysisType = 'image' | 'video' | 'webcam' | 'imageUrl' | 'videoUrl';
+export type AnalysisType = 'image' | 'video' | 'webcam' | 'imageUrl' | 'videoUrl' | 'audio' | 'audioUrl' | 'extractAudio';
 
 interface AnalysisOptionsProps {
   onSelect: (type: AnalysisType) => void;
@@ -24,17 +24,20 @@ const AnalysisOptions = ({ onSelect }: AnalysisOptionsProps) => {
   };
 
   const options = [
-    { type: 'image' as AnalysisType, icon: Image, label: 'Process online image' },
-    { type: 'video' as AnalysisType, icon: VideoIcon, label: 'Process online video' },
+    { type: 'image' as AnalysisType, icon: Image, label: 'Process image file' },
+    { type: 'video' as AnalysisType, icon: VideoIcon, label: 'Process video file' },
+    { type: 'audio' as AnalysisType, icon: Headphones, label: 'Process audio file' },
     { type: 'webcam' as AnalysisType, icon: Camera, label: 'Capture live webcam' },
     { type: 'imageUrl' as AnalysisType, icon: Link2, label: 'Analyze image URL' },
     { type: 'videoUrl' as AnalysisType, icon: Video, label: 'Analyze video URL' },
+    { type: 'audioUrl' as AnalysisType, icon: Music, label: 'Analyze audio URL' },
+    { type: 'extractAudio' as AnalysisType, icon: Music, label: 'Extract & analyze audio' },
   ];
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto p-6">
       <h1 className="text-3xl font-bold text-center mb-8">Deepfake Detection System</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {options.map(({ type, icon: Icon, label }) => (
           <motion.div
             key={type}

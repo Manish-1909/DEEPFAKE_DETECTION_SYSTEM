@@ -3,10 +3,18 @@ import { useState, useRef } from "react";
 import Header from "@/components/Header";
 import UploadZone from "@/components/UploadZone";
 import AnalysisDisplay from "@/components/AnalysisDisplay";
+import AudioAnalysisDisplay from "@/components/AudioAnalysisDisplay";
 import AnalysisOptions, { AnalysisType } from "@/components/AnalysisOptions";
 import { motion } from "framer-motion";
 import { toast } from "@/components/ui/use-toast";
-import { DetectionResult, analyzeImage, analyzeVideo, startWebcamAnalysis } from "@/services/detectionService";
+import { 
+  DetectionResult, 
+  analyzeImage, 
+  analyzeVideo, 
+  analyzeAudio,
+  extractAudioFromVideo,
+  startWebcamAnalysis 
+} from "@/services/detectionService";
 import { Button } from "@/components/ui/button";
 import { Camera } from "lucide-react";
 
@@ -15,11 +23,13 @@ const Index = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState<DetectionResult | null>(null);
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleAnalysisTypeSelect = (type: AnalysisType) => {
     setAnalysisType(type);
     setResults(null);
+    setAudioUrl(null);
     if (webcamStream) {
       webcamStream.getTracks().forEach(track => track.stop());
       setWebcamStream(null);
@@ -82,10 +92,18 @@ const Index = () => {
       const fileUrl = URL.createObjectURL(file);
       
       let analysisResults: DetectionResult;
+      
       if (file.type.startsWith('image/')) {
         analysisResults = await analyzeImage(fileUrl);
       } else if (file.type.startsWith('video/')) {
         analysisResults = await analyzeVideo(fileUrl);
+      } else if (file.type.startsWith('audio/')) {
+        analysisResults = await analyzeAudio(fileUrl);
+        setAudioUrl(fileUrl);
+      } else if (analysisType === 'extractAudio' && file.type.startsWith('video/')) {
+        const audioUrl = await extractAudioFromVideo(fileUrl);
+        analysisResults = await analyzeAudio(audioUrl);
+        setAudioUrl(audioUrl);
       } else {
         throw new Error('Unsupported file type');
       }
@@ -113,10 +131,14 @@ const Index = () => {
     setIsAnalyzing(true);
     try {
       let analysisResults: DetectionResult;
+      
       if (analysisType === 'imageUrl') {
         analysisResults = await analyzeImage(url);
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url);
+      } else if (analysisType === 'audioUrl') {
+        analysisResults = await analyzeAudio(url);
+        setAudioUrl(url);
       } else {
         throw new Error('Invalid analysis type');
       }
@@ -137,6 +159,8 @@ const Index = () => {
       setIsAnalyzing(false);
     }
   };
+
+  const isAudioAnalysis = results?.metadata.type === 'audio';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted">
@@ -182,7 +206,14 @@ const Index = () => {
                   isAnalyzing={isAnalyzing}
                 />
               )}
-              {results && <AnalysisDisplay results={results} />}
+              
+              {results && !isAudioAnalysis && (
+                <AnalysisDisplay results={results} />
+              )}
+              
+              {results && isAudioAnalysis && (
+                <AudioAnalysisDisplay results={results} audioUrl={audioUrl || undefined} />
+              )}
             </>
           )}
         </motion.div>
