@@ -44,7 +44,7 @@ export const initializeDetector = async () => {
     detector = await pipeline(
       "image-classification",
       "Xenova/mosaic-base",  // Changed to a more reliable model
-      { quantized: false }   // Disable quantization for better compatibility
+      { /* Using default options, removed 'quantized' which caused the error */ }
     );
     console.log('Detector initialized successfully');
   }
@@ -91,13 +91,22 @@ export const analyzeImage = async (imageUrl: string, onProgress?: (progress: num
         faceConsistency: 95 - (score / 2),
         lightingConsistency: 90 - (score / 3),
         artifactsScore: score,
-        highlightedAreas: score > 70 ? [{
-          x: 100,
-          y: 100,
-          width: 200,
-          height: 200,
-          confidence: score
-        }] : []
+        highlightedAreas: score > 70 ? [
+          {
+            x: 100,
+            y: 100,
+            width: 200,
+            height: 200,
+            confidence: score
+          },
+          {
+            x: 350,
+            y: 150,
+            width: 100,
+            height: 150,
+            confidence: score - 15
+          }
+        ] : []
       },
       metadata: {
         type: 'image',
@@ -136,16 +145,17 @@ export const analyzeVideo = async (
     
     if (onProgress) onProgress(50);
     
-    // Generate mock frame results
-    const frameCount = 5;
+    // Generate more detailed mock frame results
+    const frameCount = 10;
     const frameResults = Array.from({ length: frameCount }, (_, i) => {
       const mockResult = generateMockClassification();
+      const showBoundingBox = mockResult.score > 0.6;
       return {
         timestamp: i * 1000,
         confidence: mockResult.score * 100,
-        boundingBox: mockResult.score > 0.7 ? {
-          x: 100,
-          y: 100,
+        boundingBox: showBoundingBox ? {
+          x: 100 + (i * 5),
+          y: 100 + (i % 3) * 10,
           width: 200,
           height: 200
         } : undefined
@@ -188,7 +198,13 @@ export const analyzeVideo = async (
         artifactsScore: 55,
         suspiciousFrames: Array.from({ length: 5 }, (_, i) => ({
           timestamp: i * 1000,
-          confidence: 55 + Math.random() * 10
+          confidence: 55 + Math.random() * 10,
+          boundingBox: i % 2 === 0 ? {
+            x: 100 + (i * 10),
+            y: 100,
+            width: 200,
+            height: 200
+          } : undefined
         }))
       },
       metadata: {
