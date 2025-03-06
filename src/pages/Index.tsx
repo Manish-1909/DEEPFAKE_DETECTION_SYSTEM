@@ -12,6 +12,7 @@ import {
   analyzeImage, 
   analyzeVideo, 
   analyzeAudio,
+  analyzeAudioSpectrogram,
   extractAudioFromVideo,
   startWebcamAnalysis 
 } from "@/services/detectionService";
@@ -98,7 +99,11 @@ const Index = () => {
       } else if (file.type.startsWith('video/')) {
         analysisResults = await analyzeVideo(fileUrl);
       } else if (file.type.startsWith('audio/')) {
-        analysisResults = await analyzeAudio(fileUrl);
+        if (analysisType === 'audioSpectrogram') {
+          analysisResults = await analyzeAudioSpectrogram(fileUrl);
+        } else {
+          analysisResults = await analyzeAudio(fileUrl);
+        }
         setAudioUrl(fileUrl);
       } else if (analysisType === 'extractAudio' && file.type.startsWith('video/')) {
         const audioUrl = await extractAudioFromVideo(fileUrl);
@@ -137,7 +142,11 @@ const Index = () => {
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url);
       } else if (analysisType === 'audioUrl') {
-        analysisResults = await analyzeAudio(url);
+        if (analysisType === 'audioSpectrogram') {
+          analysisResults = await analyzeAudioSpectrogram(url);
+        } else {
+          analysisResults = await analyzeAudio(url);
+        }
         setAudioUrl(url);
       } else {
         throw new Error('Invalid analysis type');

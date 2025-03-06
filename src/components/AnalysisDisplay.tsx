@@ -6,7 +6,7 @@ import { Progress } from './ui/progress';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Slider } from './ui/slider';
-import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon, HeatMap, Grid } from 'lucide-react';
+import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon, Grid } from 'lucide-react';
 import { DetectionResult } from '@/services/detectionService';
 import { generatePDFReport } from '@/utils/reportGenerator';
 
