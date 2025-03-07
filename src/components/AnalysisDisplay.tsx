@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { Badge } from './ui/badge';
@@ -7,17 +6,20 @@ import { Progress } from './ui/progress';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Slider } from './ui/slider';
-import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon } from 'lucide-react';
+import { FileDown, AlertCircle, ChevronLeft, ChevronRight, FileText, ImageIcon, Video, BarChart as BarChartIcon, ZoomIn, Search } from 'lucide-react';
 import { DetectionResult } from '@/services/detectionService';
 import { generatePDFReport } from '@/utils/reportGenerator';
+import { toast } from './ui/use-toast';
 
 interface AnalysisDisplayProps {
   results: DetectionResult;
 }
 
-const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
+const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
   const { confidence, analysis, metadata, isManipulated, classification, riskLevel } = results;
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
+  const [hoveredRegion, setHoveredRegion] = useState<number | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
   
   if (metadata.type === 'audio') {
     return null;
@@ -83,6 +85,10 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
 
   const handleDownloadReport = () => {
     generatePDFReport(results);
+    toast({
+      title: "Report Generated",
+      description: "Your detailed analysis report has been downloaded.",
+    });
   };
 
   const getActiveFrame = () => {
@@ -108,9 +114,21 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
     }
   };
 
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 0.5, 3));
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 0.5, 1));
+  };
+
+  const handleRegionHover = useCallback((index: number | null) => {
+    setHoveredRegion(index);
+  }, []);
+
   const activeFrame = getActiveFrame();
 
-  // Generate heatmap visualization based on analysis data
+  // Enhanced interactive heatmap visualization based on analysis data
   const renderHeatmap = () => {
     const heatmapData = analysis.heatmapData || {
       regions: [{ x: 50, y: 50, intensity: 0.2, radius: 30 }],
@@ -125,30 +143,67 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
     
     return (
       <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300">
-        <div className="w-full h-full flex items-center justify-center text-gray-500">
+        <div 
+          className="w-full h-full flex items-center justify-center text-gray-500"
+          style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.3s ease' }}
+        >
           {metadata.type === 'image' ? 'Image Analysis' : `Frame at ${(activeFrame?.timestamp || 0) / 1000}s`}
         </div>
         
-        {/* Render each heatmap region */}
+        {/* Zoom controls */}
+        <div className="absolute top-2 right-2 flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleZoomIn} 
+            className="bg-white/80 hover:bg-white"
+            disabled={zoomLevel >= 3}
+          >
+            <ZoomIn size={16} />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleZoomOut}
+            className="bg-white/80 hover:bg-white"
+            disabled={zoomLevel <= 1}
+          >
+            <Search size={16} />
+          </Button>
+        </div>
+        
+        {/* Render each heatmap region with interactive hover effect */}
         {heatmapData.regions.map((region, index) => (
-          <div
+          <motion.div
             key={index}
-            className="absolute rounded-full"
+            className="absolute rounded-full cursor-pointer"
             style={{
               left: `${region.x}%`,
               top: `${region.y}%`,
               width: `${region.radius * 2}px`,
               height: `${region.radius * 2}px`,
-              transform: 'translate(-50%, -50%)',
+              transform: `translate(-50%, -50%) scale(${hoveredRegion === index ? 1.2 : 1})`,
               background: `radial-gradient(circle, ${getIntensityColor(region.intensity)} 0%, transparent 70%)`,
-              opacity: region.intensity,
+              opacity: hoveredRegion === index ? region.intensity * 1.3 : region.intensity,
+              transition: 'all 0.3s ease',
+              zIndex: hoveredRegion === index ? 10 : 5,
             }}
+            onMouseEnter={() => handleRegionHover(index)}
+            onMouseLeave={() => handleRegionHover(null)}
+            whileHover={{ scale: 1.1 }}
           />
         ))}
         
+        {/* Highlight info for hovered region */}
+        {hoveredRegion !== null && heatmapData.regions[hoveredRegion] && (
+          <div className="absolute bottom-2 left-2 bg-black/80 text-white text-xs p-2 rounded-md">
+            Manipulation confidence: {(heatmapData.regions[hoveredRegion].intensity * 100).toFixed(1)}%
+          </div>
+        )}
+        
         {/* Overall heatmap gradient overlay */}
         <div 
-          className="absolute inset-0" 
+          className="absolute inset-0 pointer-events-none" 
           style={{
             background: `linear-gradient(135deg, 
               ${getIntensityColor(heatmapData.overallIntensity * 0.7)} 0%, 
@@ -157,6 +212,40 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
             mixBlendMode: 'overlay'
           }}
         />
+      </div>
+    );
+  };
+
+  // Dynamic confidence meter with animated progress
+  const renderConfidenceMeter = () => {
+    const getGradient = () => {
+      if (confidence < 30) return 'bg-gradient-to-r from-green-300 to-green-500';
+      if (confidence < 70) return 'bg-gradient-to-r from-yellow-300 to-yellow-500';
+      return 'bg-gradient-to-r from-red-300 to-red-500';
+    };
+    
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-3xl font-semibold">{confidence.toFixed(1)}%</span>
+          <div className="flex gap-2">
+            <Badge variant="outline" className={confidenceLevel.className}>
+              {confidenceLevel.label}
+            </Badge>
+          </div>
+        </div>
+        <div className="h-3 w-full bg-gray-200 rounded-full overflow-hidden">
+          <motion.div 
+            className={`h-full rounded-full ${getGradient()}`}
+            initial={{ width: 0 }}
+            animate={{ width: `${confidence}%` }}
+            transition={{ duration: 1, ease: "easeOut" }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>Authentic</span>
+          <span>Manipulated</span>
+        </div>
       </div>
     );
   };
@@ -226,22 +315,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <h4 className="font-medium text-sm text-gray-600">Manipulation Probability</h4>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-3xl font-semibold">{confidence.toFixed(1)}%</span>
-                  <div className="flex gap-2">
-                    <Badge variant="outline" className={confidenceLevel.className}>
-                      {confidenceLevel.label}
-                    </Badge>
-                    <Badge variant="outline" className={
-                      riskLevel === 'high' ? 'bg-red-50 text-red-700' : 
-                      riskLevel === 'medium' ? 'bg-yellow-50 text-yellow-700' : 
-                      'bg-green-50 text-green-700'
-                    }>
-                      {getRiskLabel(riskLevel)}
-                    </Badge>
-                  </div>
-                </div>
-                <Progress value={confidence} className="h-2" />
+                {renderConfidenceMeter()}
               </div>
 
               <div className="space-y-4">
@@ -266,6 +340,19 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                     </Badge>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* AI Explainability Feature */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-sm text-gray-600">AI Explanation</h4>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  {isManipulated ? 
+                    `This media was classified as manipulated because our AI detected ${analysis.artifactsScore > 50 ? 'digital artifacts' : ''} ${analysis.faceConsistency < 70 ? 'facial inconsistencies' : ''} ${analysis.lightingConsistency < 70 ? 'lighting anomalies' : ''} typical of deepfakes. The manipulation confidence of ${confidence.toFixed(1)}% indicates a ${confidence > 80 ? 'high' : confidence > 60 ? 'moderate' : 'potential'} risk of this being synthetic content.` :
+                    `This media appears to be authentic based on our AI analysis. The high consistency in facial features (${analysis.faceConsistency.toFixed(1)}%) and lighting patterns (${analysis.lightingConsistency.toFixed(1)}%), combined with the low artifact score (${analysis.artifactsScore.toFixed(1)}%) suggest this is likely genuine content.`
+                  }
+                </p>
               </div>
             </div>
 
@@ -385,7 +472,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                 </div>
               )}
               
-              {/* Graphical heatmap visualization */}
+              {/* Enhanced interactive heatmap visualization */}
               {renderHeatmap()}
               
               <div className="bg-gray-50 rounded-lg p-4 max-w-3xl mx-auto">
@@ -407,7 +494,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                       </li>
                       <li className="text-sm flex items-center">
                         <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                        Artifacts score indicates digital manipulation: {analysis.artifactsScore.toFixed(1)}%
+                        Hover over colored regions to see detailed analysis of specific areas.
                       </li>
                     </>
                   ) : (
