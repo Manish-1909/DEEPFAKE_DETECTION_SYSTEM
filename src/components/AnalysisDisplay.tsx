@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
@@ -380,7 +379,7 @@ const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
                         <span className="font-medium">Classification:</span> {getClassificationLabel(classification)}
                       </li>
                       <li className="text-sm">
-                        <span className="font-medium">Risk Level:</span> {getRiskLevel(riskLevel)}
+                        <span className="font-medium">Risk Level:</span> {getRiskLabel(riskLevel)}
                       </li>
                     </ul>
                   </div>
