@@ -42,7 +42,7 @@ const AnalysisOptions = ({ onSelect }: AnalysisOptionsProps) => {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="text-3xl font-bold bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent"
         >
-          DeepGuard AI Detection System
+          DEEP DETECTIVES
         </motion.h1>
         <motion.p
           initial={{ opacity: 0 }}

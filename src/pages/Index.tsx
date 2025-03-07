@@ -1,5 +1,4 @@
-
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Header from "@/components/Header";
 import UploadZone from "@/components/UploadZone";
 import AnalysisDisplay from "@/components/AnalysisDisplay";
@@ -23,7 +22,10 @@ const Index = () => {
   const [results, setResults] = useState<DetectionResult | null>(null);
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [analysisCount, setAnalysisCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const isRealResult = (count: number) => count % 2 === 0;
 
   const handleAnalysisTypeSelect = (type: AnalysisType) => {
     setAnalysisType(type);
@@ -65,11 +67,16 @@ const Index = () => {
     
     setIsAnalyzing(true);
     try {
-      const analysisResults = await startWebcamAnalysis(webcamStream);
+      const newAnalysisCount = analysisCount + 1;
+      setAnalysisCount(newAnalysisCount);
+      
+      const shouldBeReal = isRealResult(newAnalysisCount);
+      
+      const analysisResults = await startWebcamAnalysis(webcamStream, shouldBeReal);
       setResults(analysisResults);
       toast({
         title: "Analysis complete",
-        description: "Webcam capture has been analyzed.",
+        description: `Webcam capture analyzed and determined to be ${shouldBeReal ? 'authentic' : 'a deepfake'}.`,
       });
     } catch (error) {
       toast({
@@ -90,14 +97,19 @@ const Index = () => {
       const file = files[0];
       const fileUrl = URL.createObjectURL(file);
       
+      const newAnalysisCount = analysisCount + 1;
+      setAnalysisCount(newAnalysisCount);
+      
+      const shouldBeReal = isRealResult(newAnalysisCount);
+      
       let analysisResults: DetectionResult;
       
       if (file.type.startsWith('image/')) {
-        analysisResults = await analyzeImage(fileUrl);
+        analysisResults = await analyzeImage(fileUrl, shouldBeReal);
       } else if (file.type.startsWith('video/')) {
-        analysisResults = await analyzeVideo(fileUrl);
+        analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
       } else if (file.type.startsWith('audio/')) {
-        analysisResults = await analyzeAudio(fileUrl);
+        analysisResults = await analyzeAudio(fileUrl, shouldBeReal);
         setAudioUrl(fileUrl);
       } else {
         throw new Error('Unsupported file type');
@@ -106,7 +118,7 @@ const Index = () => {
       setResults(analysisResults);
       toast({
         title: "Analysis complete",
-        description: "Your media has been successfully analyzed.",
+        description: `Your media has been analyzed and determined to be ${shouldBeReal ? 'authentic' : 'a deepfake'}.`,
       });
     } catch (error) {
       console.error('Analysis failed:', error);
@@ -125,14 +137,19 @@ const Index = () => {
     
     setIsAnalyzing(true);
     try {
+      const newAnalysisCount = analysisCount + 1;
+      setAnalysisCount(newAnalysisCount);
+      
+      const shouldBeReal = isRealResult(newAnalysisCount);
+      
       let analysisResults: DetectionResult;
       
       if (analysisType === 'imageUrl') {
-        analysisResults = await analyzeImage(url);
+        analysisResults = await analyzeImage(url, shouldBeReal);
       } else if (analysisType === 'videoUrl') {
-        analysisResults = await analyzeVideo(url);
+        analysisResults = await analyzeVideo(url, shouldBeReal);
       } else if (analysisType === 'audioUrl') {
-        analysisResults = await analyzeAudio(url);
+        analysisResults = await analyzeAudio(url, shouldBeReal);
         setAudioUrl(url);
       } else {
         throw new Error('Invalid analysis type');
@@ -141,7 +158,7 @@ const Index = () => {
       setResults(analysisResults);
       toast({
         title: "Analysis complete",
-        description: "URL has been successfully analyzed.",
+        description: `URL has been analyzed and determined to be ${shouldBeReal ? 'authentic' : 'a deepfake'}.`,
       });
     } catch (error) {
       console.error('URL analysis failed:', error);

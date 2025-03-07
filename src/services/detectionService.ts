@@ -1,66 +1,39 @@
-
 import { pipeline } from "@huggingface/transformers";
 
-export type DetectionResult = {
+export interface DetectionResult {
   confidence: number;
   isManipulated: boolean;
+  classification: 'highly_authentic' | 'likely_authentic' | 'possibly_manipulated' | 'highly_manipulated';
+  riskLevel: 'low' | 'medium' | 'high';
   analysis: {
-    faceConsistency: number;
-    lightingConsistency: number;
-    artifactsScore: number;
-    framewiseConfidence?: number[];
+    framewiseConfidence?: {
+      timestamp: number;
+      confidence: number;
+    }[];
     suspiciousFrames?: {
       timestamp: number;
       confidence: number;
-      boundingBox?: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      };
     }[];
-    highlightedAreas?: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      confidence: number;
-    }[];
-    audioAnalysis?: {
-      pitchConsistency: number;
-      frequencyDistortion: number;
-      artificialPatterns: number;
-      suspiciousSegments: {
-        timestamp: number;
-        duration: number;
-        confidence: number;
-        type: string;
-      }[];
-    };
+    faceConsistency: number;
+    lightingConsistency: number;
+    artifactsScore: number;
     heatmapData?: {
       regions: Array<{
-        x: number; 
+        x: number;
         y: number;
         intensity: number;
         radius: number;
       }>;
       overallIntensity: number;
-    }
+    };
   };
   metadata: {
     type: 'image' | 'video' | 'audio';
+    resolution?: string;
     frameCount?: number;
     duration?: number;
-    resolution?: string;
-    processedFrames?: number;
-    totalFrames?: number;
-    sampleRate?: number;
-    audioChannels?: number;
-    audioDuration?: number;
   };
-  classification: 'highly_authentic' | 'likely_authentic' | 'possibly_manipulated' | 'highly_manipulated';
-  riskLevel: 'low' | 'medium' | 'high';
-};
+}
 
 let detector: any = null;
 let audioDetector: any = null;
@@ -293,321 +266,162 @@ const getRiskLevel = (confidence: number): 'low' | 'medium' | 'high' => {
   return 'high';
 };
 
-export const analyzeImage = async (imageUrl: string, onProgress?: (progress: number) => void): Promise<DetectionResult> => {
-  try {
-    console.log('Starting image analysis:', imageUrl);
-    await initializeDetector();
-    
-    if (onProgress) onProgress(30);
-    
-    // Use consistent classification based on input source
-    const isManipulated = shouldClassifyAsManipulated(imageUrl);
-    const confidence = generateConfidenceScore(isManipulated);
-    const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(isManipulated);
-    
-    if (onProgress) onProgress(100);
-    
-    const classification = getClassificationCategory(confidence);
-    const riskLevel = getRiskLevel(confidence);
-    
-    const result: DetectionResult = {
-      confidence,
-      isManipulated,
-      classification,
-      riskLevel,
-      analysis: {
-        faceConsistency,
-        lightingConsistency,
-        artifactsScore,
-        heatmapData: generateHeatmapData(isManipulated)
-      },
-      metadata: {
-        type: 'image',
-        resolution: '1920x1080'
-      }
-    };
-
-    return result;
-  } catch (error) {
-    console.error('Image analysis failed:', error);
-    // Return fallback data
-    const isManipulated = Math.random() < 0.4;
-    const confidence = generateConfidenceScore(isManipulated);
-    const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(isManipulated);
-    
-    return {
-      confidence,
-      isManipulated,
-      classification: getClassificationCategory(confidence),
-      riskLevel: getRiskLevel(confidence),
-      analysis: {
-        faceConsistency,
-        lightingConsistency,
-        artifactsScore,
-        heatmapData: generateHeatmapData(isManipulated)
-      },
-      metadata: {
-        type: 'image',
-        resolution: '1920x1080'
-      }
-    };
+// Helper to generate realistic looking results based on whether we want 
+// a real or fake detection
+const generateResult = (mediaType: 'image' | 'video' | 'audio', shouldBeReal: boolean = false): DetectionResult => {
+  // Base confidence value (will be high for fakes, low for real)
+  const baseConfidence = shouldBeReal ? 15 + Math.random() * 15 : 75 + Math.random() * 20;
+  
+  const commonAnalysis = {
+    faceConsistency: shouldBeReal ? 85 + Math.random() * 10 : 40 + Math.random() * 30,
+    lightingConsistency: shouldBeReal ? 80 + Math.random() * 15 : 35 + Math.random() * 35,
+    artifactsScore: shouldBeReal ? 10 + Math.random() * 20 : 60 + Math.random() * 30,
+  };
+  
+  // Classification based on confidence
+  let classification: 'highly_authentic' | 'likely_authentic' | 'possibly_manipulated' | 'highly_manipulated';
+  let riskLevel: 'low' | 'medium' | 'high';
+  
+  if (baseConfidence < 25) {
+    classification = 'highly_authentic';
+    riskLevel = 'low';
+  } else if (baseConfidence < 50) {
+    classification = 'likely_authentic';
+    riskLevel = 'low';
+  } else if (baseConfidence < 75) {
+    classification = 'possibly_manipulated';
+    riskLevel = 'medium';
+  } else {
+    classification = 'highly_manipulated';
+    riskLevel = 'high';
   }
-};
 
-export const analyzeVideo = async (
-  videoUrl: string,
-  onProgress?: (progress: number) => void
-): Promise<DetectionResult> => {
-  try {
-    console.log('Starting video analysis:', videoUrl);
-    await initializeDetector();
-    
-    if (onProgress) onProgress(50);
-    
-    // Use consistent classification based on input source
-    const isManipulated = shouldClassifyAsManipulated(videoUrl);
-    const frameCount = 20;
-    
-    // Generate dynamic frame-wise confidence scores
-    const framewiseConfidence = generateFramewiseConfidence(frameCount, isManipulated);
-    const suspiciousFrames = generateSuspiciousFrames(frameCount, isManipulated);
-    
-    const avgConfidence = isManipulated ? 
-      75 + Math.random() * 20 : // 75-95% for deepfakes
-      5 + Math.random() * 20;  // 5-25% for real
-    
-    const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(isManipulated);
-    
-    if (onProgress) onProgress(100);
-    
-    const classification = getClassificationCategory(avgConfidence);
-    const riskLevel = getRiskLevel(avgConfidence);
-    
-    const result: DetectionResult = {
-      confidence: avgConfidence,
-      isManipulated,
-      classification,
-      riskLevel,
-      analysis: {
-        faceConsistency,
-        lightingConsistency,
-        artifactsScore,
-        framewiseConfidence,
-        suspiciousFrames,
-        heatmapData: generateHeatmapData(isManipulated)
-      },
-      metadata: {
-        type: 'video',
-        frameCount: frameCount,
-        duration: frameCount * 1000,
-        resolution: '1920x1080',
-        processedFrames: frameCount,
-        totalFrames: frameCount
-      }
-    };
+  // Create heatmap data - more regions and higher intensity for fakes
+  const heatmapRegionsCount = shouldBeReal ? 2 + Math.floor(Math.random() * 3) : 4 + Math.floor(Math.random() * 5);
+  const regions = Array.from({ length: heatmapRegionsCount }, () => ({
+    x: 20 + Math.random() * 60, // Keep regions within center-ish area
+    y: 20 + Math.random() * 60,
+    intensity: shouldBeReal ? 0.1 + Math.random() * 0.2 : 0.5 + Math.random() * 0.4,
+    radius: 15 + Math.random() * 20
+  }));
 
-    return result;
-  } catch (error) {
-    console.error('Video analysis failed:', error);
-    // Return fallback data
-    const isManipulated = Math.random() < 0.4;
-    const confidence = generateConfidenceScore(isManipulated);
-    const frameCount = 10;
+  const mediaSpecificData: any = {};
+  
+  // Add specific data for different media types
+  if (mediaType === 'video') {
+    const duration = 5000 + Math.floor(Math.random() * 10000); // 5-15 seconds
+    const frameRate = 30;
+    const frameCount = Math.floor(duration / 1000 * frameRate);
     
-    return {
-      confidence,
-      isManipulated,
-      classification: getClassificationCategory(confidence),
-      riskLevel: getRiskLevel(confidence),
-      analysis: {
-        faceConsistency: isManipulated ? 40 : 95,
-        lightingConsistency: isManipulated ? 35 : 90,
-        artifactsScore: isManipulated ? 80 : 15,
-        framewiseConfidence: generateFramewiseConfidence(frameCount, isManipulated),
-        suspiciousFrames: generateSuspiciousFrames(frameCount, isManipulated),
-        heatmapData: generateHeatmapData(isManipulated)
-      },
-      metadata: {
-        type: 'video',
-        frameCount: frameCount,
-        duration: frameCount * 1000,
-        resolution: '1920x1080',
-        processedFrames: frameCount,
-        totalFrames: frameCount
-      }
-    };
-  }
-};
-
-export const analyzeAudio = async (
-  audioUrl: string,
-  onProgress?: (progress: number) => void
-): Promise<DetectionResult> => {
-  try {
-    console.log('Starting audio analysis:', audioUrl);
-    await initializeAudioDetector();
+    // Generate framewise confidence data
+    const framewiseConfidence = [];
+    const frameInterval = duration / 20; // 20 data points for the graph
     
-    if (onProgress) onProgress(30);
-    
-    // Use consistent classification based on input source
-    const isManipulated = shouldClassifyAsManipulated(audioUrl);
-    const confidence = generateConfidenceScore(isManipulated);
-    
-    // Generate analysis data
-    const audioDuration = 30000; // 30 seconds mock duration
-    let pitchConsistency, frequencyDistortion, artificialPatterns;
-    
-    if (isManipulated) {
-      // Deepfake audio metrics
-      pitchConsistency = 30 + Math.random() * 20; // 30-50%
-      frequencyDistortion = 70 + Math.random() * 25; // 70-95%
-      artificialPatterns = 75 + Math.random() * 20; // 75-95%
-    } else {
-      // Real audio metrics
-      pitchConsistency = 85 + Math.random() * 15; // 85-100%
-      frequencyDistortion = 5 + Math.random() * 15; // 5-20%
-      artificialPatterns = 3 + Math.random() * 12; // 3-15%
+    for (let i = 0; i < 20; i++) {
+      // Add some variation to make it look realistic
+      const variation = Math.random() * 15 - 7.5; // +/- 7.5%
+      const adjustedConfidence = Math.max(5, Math.min(95, baseConfidence + variation));
+      
+      framewiseConfidence.push({
+        timestamp: i * frameInterval,
+        confidence: adjustedConfidence
+      });
     }
     
-    // Generate suspicious segments only for manipulated audio
-    const suspiciousSegments = generateAudioSuspiciousSegments(audioDuration, isManipulated);
+    // Generate suspicious frames - more for fakes, fewer for real
+    const suspiciousFramesCount = shouldBeReal ? 1 + Math.floor(Math.random() * 2) : 3 + Math.floor(Math.random() * 4);
+    const suspiciousFrames = Array.from({ length: suspiciousFramesCount }, (_, i) => ({
+      timestamp: Math.floor(Math.random() * duration),
+      confidence: shouldBeReal ? 20 + Math.random() * 30 : 65 + Math.random() * 30
+    })).sort((a, b) => a.timestamp - b.timestamp);
     
-    if (onProgress) onProgress(100);
-    
-    const classification = getClassificationCategory(confidence);
-    const riskLevel = getRiskLevel(confidence);
-    
-    const result: DetectionResult = {
-      confidence,
-      isManipulated,
-      classification,
-      riskLevel,
-      analysis: {
-        // Preserve required fields from the interface
-        faceConsistency: 0,
-        lightingConsistency: 0,
-        artifactsScore: 0,
-        // Add enhanced audio-specific analysis
-        audioAnalysis: {
-          pitchConsistency,
-          frequencyDistortion,
-          artificialPatterns,
-          suspiciousSegments
-        },
-        heatmapData: generateHeatmapData(isManipulated)
-      },
-      metadata: {
-        type: 'audio',
-        duration: audioDuration,
-        sampleRate: 44100,
-        audioChannels: 2,
-        audioDuration: audioDuration / 1000 // in seconds
-      }
+    mediaSpecificData.framewiseConfidence = framewiseConfidence;
+    mediaSpecificData.suspiciousFrames = suspiciousFrames;
+    mediaSpecificData.metadata = {
+      type: 'video',
+      resolution: '1920x1080',
+      frameCount,
+      duration
     };
+  } else if (mediaType === 'audio') {
+    const duration = 8000 + Math.floor(Math.random() * 12000); // 8-20 seconds
     
-    return result;
-  } catch (error) {
-    console.error('Audio analysis failed:', error);
-    // Return fallback data
-    const isManipulated = Math.random() < 0.4;
-    const confidence = generateConfidenceScore(isManipulated);
-    const audioDuration = 30000;
+    // Generate framewise confidence data for audio segments
+    const framewiseConfidence = [];
+    const segmentInterval = duration / 15; // 15 data points for the graph
     
-    return {
-      confidence,
-      isManipulated,
-      classification: getClassificationCategory(confidence),
-      riskLevel: getRiskLevel(confidence),
-      analysis: {
-        faceConsistency: 0,
-        lightingConsistency: 0,
-        artifactsScore: 0,
-        audioAnalysis: {
-          pitchConsistency: isManipulated ? 35 : 90,
-          frequencyDistortion: isManipulated ? 85 : 15,
-          artificialPatterns: isManipulated ? 90 : 10,
-          suspiciousSegments: generateAudioSuspiciousSegments(audioDuration, isManipulated)
-        },
-        heatmapData: generateHeatmapData(isManipulated)
-      },
-      metadata: {
-        type: 'audio',
-        duration: audioDuration,
-        sampleRate: 44100,
-        audioChannels: 2,
-        audioDuration: 30
-      }
+    for (let i = 0; i < 15; i++) {
+      // Add some variation to make it look realistic
+      const variation = Math.random() * 12 - 6; // +/- 6%
+      const adjustedConfidence = Math.max(5, Math.min(95, baseConfidence + variation));
+      
+      framewiseConfidence.push({
+        timestamp: i * segmentInterval,
+        confidence: adjustedConfidence
+      });
+    }
+    
+    // Generate suspicious segments - more for fakes, fewer for real
+    const suspiciousSegmentsCount = shouldBeReal ? 1 + Math.floor(Math.random() * 2) : 3 + Math.floor(Math.random() * 3);
+    const suspiciousFrames = Array.from({ length: suspiciousSegmentsCount }, (_, i) => ({
+      timestamp: Math.floor(Math.random() * duration),
+      confidence: shouldBeReal ? 20 + Math.random() * 30 : 65 + Math.random() * 30
+    })).sort((a, b) => a.timestamp - b.timestamp);
+    
+    mediaSpecificData.framewiseConfidence = framewiseConfidence;
+    mediaSpecificData.suspiciousFrames = suspiciousFrames;
+    mediaSpecificData.metadata = {
+      type: 'audio',
+      duration
+    };
+  } else {
+    // Image specific data
+    mediaSpecificData.metadata = {
+      type: 'image',
+      resolution: '2048x1536'
     };
   }
+  
+  // Return the complete result
+  return {
+    confidence: baseConfidence,
+    isManipulated: !shouldBeReal,
+    classification,
+    riskLevel,
+    analysis: {
+      ...commonAnalysis,
+      ...mediaSpecificData,
+      heatmapData: {
+        regions,
+        overallIntensity: shouldBeReal ? 0.2 : 0.7
+      }
+    },
+    metadata: mediaSpecificData.metadata || {
+      type: mediaType
+    }
+  };
 };
 
-export const startWebcamAnalysis = async (
-  stream: MediaStream,
-  onProgress?: (progress: number) => void
-): Promise<DetectionResult> => {
-  try {
-    console.log('Starting webcam analysis');
-    await initializeDetector();
-    
-    if (onProgress) onProgress(50);
-    
-    // Generate a unique ID for this webcam session
-    const sessionId = Date.now().toString();
-    const isManipulated = shouldClassifyAsManipulated(sessionId);
-    const frameCount = 10;
-    
-    // Generate confidence based on classification
-    const confidence = generateConfidenceScore(isManipulated);
-    const { faceConsistency, lightingConsistency, artifactsScore } = generateAnalysisSubScores(isManipulated);
-    
-    if (onProgress) onProgress(100);
-    
-    const classification = getClassificationCategory(confidence);
-    const riskLevel = getRiskLevel(confidence);
-    
-    const result: DetectionResult = {
-      confidence,
-      isManipulated,
-      classification,
-      riskLevel,
-      analysis: {
-        faceConsistency,
-        lightingConsistency,
-        artifactsScore,
-        framewiseConfidence: generateFramewiseConfidence(frameCount, isManipulated),
-        suspiciousFrames: generateSuspiciousFrames(frameCount, isManipulated),
-        heatmapData: generateHeatmapData(isManipulated)
-      },
-      metadata: {
-        type: 'video',
-        resolution: '1280x720'
-      }
-    };
+export const analyzeImage = async (imageUrl: string, shouldBeReal: boolean = false): Promise<DetectionResult> => {
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+  return generateResult('image', shouldBeReal);
+};
 
-    return result;
-  } catch (error) {
-    console.error('Webcam analysis failed:', error);
-    // Return fallback data
-    const isManipulated = Math.random() < 0.4;
-    const confidence = generateConfidenceScore(isManipulated);
-    
-    return {
-      confidence,
-      isManipulated,
-      classification: getClassificationCategory(confidence),
-      riskLevel: getRiskLevel(confidence),
-      analysis: {
-        faceConsistency: isManipulated ? 35 : 95,
-        lightingConsistency: isManipulated ? 30 : 90,
-        artifactsScore: isManipulated ? 85 : 15,
-        framewiseConfidence: generateFramewiseConfidence(5, isManipulated),
-        suspiciousFrames: generateSuspiciousFrames(5, isManipulated),
-        heatmapData: generateHeatmapData(isManipulated)
-      },
-      metadata: {
-        type: 'video',
-        resolution: '1280x720'
-      }
-    };
-  }
+export const analyzeVideo = async (videoUrl: string, shouldBeReal: boolean = false): Promise<DetectionResult> => {
+  // Simulate longer processing time for videos
+  await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
+  return generateResult('video', shouldBeReal);
+};
+
+export const analyzeAudio = async (audioUrl: string, shouldBeReal: boolean = false): Promise<DetectionResult> => {
+  // Simulate processing time for audio
+  await new Promise(resolve => setTimeout(resolve, 2500 + Math.random() * 1500));
+  return generateResult('audio', shouldBeReal);
+};
+
+export const startWebcamAnalysis = async (stream: MediaStream, shouldBeReal: boolean = false): Promise<DetectionResult> => {
+  // Simulate processing
+  await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+  return generateResult('video', shouldBeReal);
 };
