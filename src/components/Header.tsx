@@ -33,10 +33,10 @@ const Header = () => {
           <Shield className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
-              AI BASED DEEPFAKE DETECTION SYSTEM
+              DEEP DETECTIVES
             </h1>
             <p className="text-xs text-muted-foreground">
-              WITH MULTIPLE FEATURES
+              AI BASED DEEPFAKE DETECTION SYSTEM
             </p>
           </div>
         </motion.div>

@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable';
 import { DetectionResult } from '@/services/detectionService';
 
 // Define the extended types for our analysis data
-interface AudioAnalysis {
+export interface AudioAnalysis {
   pitchConsistency: number;
   frequencyDistortion: number;
   artificialPatterns: number;
@@ -16,20 +16,20 @@ interface AudioAnalysis {
   }[];
 }
 
-interface BoundingBox {
+export interface BoundingBox {
   x: number;
   y: number;
   width: number;
   height: number;
 }
 
-interface SuspiciousFrame {
+export interface SuspiciousFrame {
   timestamp: number;
   confidence: number;
   boundingBox?: BoundingBox;
 }
 
-interface HighlightedArea {
+export interface HighlightedArea {
   x: number;
   y: number;
   width: number;
@@ -37,12 +37,35 @@ interface HighlightedArea {
   confidence: number;
 }
 
+// Helper function to convert region data to the expected format
+const convertRegionsToHighlightedAreas = (regions: any[]): HighlightedArea[] => {
+  if (!regions) return [];
+  
+  return regions.map(region => ({
+    x: region.x,
+    y: region.y,
+    width: region.width || region.radius * 2 || 20,
+    height: region.height || region.radius * 2 || 20,
+    confidence: region.confidence || region.intensity * 100 || 75
+  }));
+};
+
 // Add this function to convert dataURL to image for PDF
 const addImageToPdf = (doc: jsPDF, dataUrl: string, x: number, y: number, width: number, height: number, title: string) => {
   if (dataUrl) {
-    doc.addImage(dataUrl, 'JPEG', x, y, width, height);
-    doc.setFontSize(10);
-    doc.text(title, x + width/2, y + height + 5, { align: 'center' });
+    try {
+      doc.addImage(dataUrl, 'JPEG', x, y, width, height);
+      doc.setFontSize(10);
+      doc.text(title, x + width/2, y + height + 5, { align: 'center' });
+    } catch (error) {
+      console.error('Error adding image to PDF:', error);
+      // Add a placeholder or error message instead
+      doc.setFillColor(240, 240, 240);
+      doc.rect(x, y, width, height, 'F');
+      doc.setFontSize(10);
+      doc.text('Image could not be displayed', x + width/2, y + height/2, { align: 'center' });
+      doc.text(title, x + width/2, y + height + 5, { align: 'center' });
+    }
   }
 };
 
@@ -133,7 +156,12 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
   });
 
   // Add highlighted areas for images
-  const highlightedAreas = results.analysis.heatmapData?.regions as HighlightedArea[] | undefined;
+  let highlightedAreas: HighlightedArea[] = [];
+  
+  if (results.analysis.heatmapData && results.analysis.heatmapData.regions) {
+    highlightedAreas = convertRegionsToHighlightedAreas(results.analysis.heatmapData.regions);
+  }
+  
   if (results.metadata.type === 'image' && highlightedAreas && highlightedAreas.length > 0) {
     yPos += 10;
     doc.setFontSize(14);
@@ -212,22 +240,22 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
   }
 
   // Add audio analysis for audio files
-  const audioAnalysis = results.analysis.audioAnalysis as AudioAnalysis | undefined;
-  if (results.metadata.type === 'audio' && audioAnalysis) {
+  const audioData = (results.analysis as any).audioAnalysis;
+  if (results.metadata.type === 'audio' && audioData) {
     yPos += 10;
     doc.setFontSize(14);
     doc.text('Audio Analysis', 14, yPos);
 
-    const audioData = [
-      ['Pitch Consistency', `${audioAnalysis.pitchConsistency.toFixed(1)}%`],
-      ['Frequency Distortion', `${audioAnalysis.frequencyDistortion.toFixed(1)}%`],
-      ['Artificial Patterns', `${audioAnalysis.artificialPatterns.toFixed(1)}%`],
+    const audioMetrics = [
+      ['Pitch Consistency', `${audioData.pitchConsistency.toFixed(1)}%`],
+      ['Frequency Distortion', `${audioData.frequencyDistortion.toFixed(1)}%`],
+      ['Artificial Patterns', `${audioData.artificialPatterns.toFixed(1)}%`],
     ];
 
     yPos += 5;
     autoTable(doc, {
       head: [['Analysis Type', 'Score']],
-      body: audioData,
+      body: audioMetrics,
       startY: yPos,
       theme: 'grid',
       didDrawPage: (data) => {
@@ -236,12 +264,12 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
     });
 
     // Add suspicious segments
-    if (audioAnalysis.suspiciousSegments.length > 0) {
+    if (audioData.suspiciousSegments && audioData.suspiciousSegments.length > 0) {
       yPos += 10;
       doc.setFontSize(14);
       doc.text('Suspicious Audio Segments', 14, yPos);
 
-      const segmentData = audioAnalysis.suspiciousSegments.map((segment, index) => [
+      const segmentData = audioData.suspiciousSegments.map((segment: any, index: number) => [
         `${index + 1}`,
         `${(segment.timestamp / 1000).toFixed(1)}s - ${((segment.timestamp + segment.duration) / 1000).toFixed(1)}s`,
         segment.type.replace('_', ' '),
@@ -284,14 +312,14 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
       if (results.analysis.artifactsScore > 50) {
         conclusionText += 'Digital artifacts identified. ';
       }
-    } else if (results.metadata.type === 'audio' && audioAnalysis) {
-      if (audioAnalysis.pitchConsistency < 70) {
+    } else if (results.metadata.type === 'audio' && audioData) {
+      if (audioData.pitchConsistency < 70) {
         conclusionText += 'Voice pitch inconsistencies detected. ';
       }
-      if (audioAnalysis.frequencyDistortion > 50) {
+      if (audioData.frequencyDistortion > 50) {
         conclusionText += 'Frequency distortions present. ';
       }
-      if (audioAnalysis.artificialPatterns > 50) {
+      if (audioData.artificialPatterns > 50) {
         conclusionText += 'Artificial speech patterns identified. ';
       }
     }

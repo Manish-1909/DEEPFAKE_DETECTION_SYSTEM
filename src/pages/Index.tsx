@@ -17,6 +17,43 @@ import {
 import { Button } from "@/components/ui/button";
 import { Camera } from "lucide-react";
 
+// Add polyfill for ImageCapture if needed
+declare global {
+  interface Window {
+    ImageCapture: any;
+  }
+}
+
+// Polyfill for browsers that don't support ImageCapture
+if (!('ImageCapture' in window)) {
+  window.ImageCapture = class {
+    track: MediaStreamTrack;
+    
+    constructor(track: MediaStreamTrack) {
+      this.track = track;
+    }
+    
+    async grabFrame() {
+      const videoEl = document.createElement('video');
+      videoEl.srcObject = new MediaStream([this.track]);
+      videoEl.play();
+      
+      return new Promise<ImageBitmap>((resolve) => {
+        videoEl.onplaying = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = videoEl.videoWidth;
+          canvas.height = videoEl.videoHeight;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(videoEl, 0, 0);
+          // @ts-ignore - createImageBitmap might not be supported in all browsers
+          createImageBitmap(canvas).then(resolve);
+          videoEl.pause();
+        };
+      });
+    }
+  };
+}
+
 const Index = () => {
   const [analysisType, setAnalysisType] = useState<AnalysisType | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -119,7 +156,8 @@ const Index = () => {
       
       // Capture a frame from the webcam
       const track = webcamStream.getVideoTracks()[0];
-      const imageCapture = new ImageCapture(track);
+      // Use our polyfill or the native ImageCapture
+      const imageCapture = new window.ImageCapture(track);
       const bitmap = await imageCapture.grabFrame();
       
       // Convert to blob URL
