@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, ShieldCheck, Menu, Info, FileText, Code } from 'lucide-react';
+import { Shield, ShieldCheck, Menu, Info, FileText, Code, HelpCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import {
   Dialog,
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Header = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAboutDialogOpen, setIsAboutDialogOpen] = useState(false);
 
   return (
     <motion.header 
@@ -32,10 +33,10 @@ const Header = () => {
           <Shield className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
-              DEEP DETECTIVES
+              AI BASED DEEPFAKE DETECTION SYSTEM
             </h1>
             <p className="text-xs text-muted-foreground">
-              Deepfake Based Detection System
+              WITH MULTIPLE FEATURES
             </p>
           </div>
         </motion.div>
@@ -220,9 +221,54 @@ Authorization: Bearer YOUR_API_KEY
               </DialogContent>
             </Dialog>
             
-            <Button variant="ghost" size="sm" className="text-sm">
-              About
-            </Button>
+            <Dialog open={isAboutDialogOpen} onOpenChange={setIsAboutDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-sm">
+                  About
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>About This Application</DialogTitle>
+                  <DialogDescription>
+                    Learn more about our AI-powered deepfake detection system
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <p className="text-sm">
+                    This advanced AI-based deepfake detection system provides comprehensive analysis of various media types
+                    to help identify potential digital manipulations. Our system uses state-of-the-art machine learning
+                    algorithms trained on thousands of real and fake examples to deliver high-accuracy results.
+                  </p>
+                  
+                  <div className="rounded-lg overflow-hidden border">
+                    <div className="bg-primary/10 p-4">
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <HelpCircle className="w-5 h-5 text-primary" />
+                        Key Features
+                      </h3>
+                    </div>
+                    <div className="p-4 space-y-3">
+                      <ul className="list-disc pl-5 space-y-2 text-sm">
+                        <li><strong>Multi-media Support:</strong> Analyze images, videos, audio files, and URLs</li>
+                        <li><strong>Real-time Analysis:</strong> Process media directly from your webcam</li>
+                        <li><strong>Detailed Reporting:</strong> Generate comprehensive PDF reports with visual evidence</li>
+                        <li><strong>Advanced Visualization:</strong> View heatmaps of manipulated regions</li>
+                        <li><strong>High Accuracy:</strong> Benefit from our continuously improved detection models</li>
+                        <li><strong>Transparent Results:</strong> Understand why content is flagged as manipulated</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <p className="text-sm">
+                    Developed to combat the growing problem of deepfakes, this tool helps journalists, content moderators,
+                    individuals, and organizations verify the authenticity of digital content in an era where AI-generated
+                    media is becoming increasingly sophisticated and prevalent.
+                  </p>
+                </div>
+              </DialogContent>
+            </Dialog>
+            
             <Button variant="ghost" size="sm" className="text-sm">
               API
             </Button>

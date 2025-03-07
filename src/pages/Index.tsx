@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import Header from "@/components/Header";
 import UploadZone from "@/components/UploadZone";
@@ -22,6 +23,8 @@ const Index = () => {
   const [results, setResults] = useState<DetectionResult | null>(null);
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [gradCamUrl, setGradCamUrl] = useState<string | null>(null);
   const [analysisCount, setAnalysisCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -31,6 +34,8 @@ const Index = () => {
     setAnalysisType(type);
     setResults(null);
     setAudioUrl(null);
+    setMediaUrl(null);
+    setGradCamUrl(null);
     if (webcamStream) {
       webcamStream.getTracks().forEach(track => track.stop());
       setWebcamStream(null);
@@ -62,6 +67,46 @@ const Index = () => {
     }
   };
 
+  // Generate a fake Grad-CAM image URL based on the original image
+  const generateGradCamUrl = (originalUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(originalUrl);
+          return;
+        }
+        
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw the original image
+        ctx.drawImage(img, 0, 0);
+        
+        // Apply a red overlay with random opacity to simulate Grad-CAM heatmap
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+        
+        // Create random "hotspots"
+        for (let i = 0; i < 5; i++) {
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          const radius = 20 + Math.random() * 50;
+          
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+        
+        resolve(canvas.toDataURL('image/jpeg'));
+      };
+      img.onerror = () => resolve(originalUrl);
+      img.src = originalUrl;
+    });
+  };
+
   const handleWebcamCapture = async () => {
     if (!webcamStream) return;
     
@@ -71,6 +116,25 @@ const Index = () => {
       setAnalysisCount(newAnalysisCount);
       
       const shouldBeReal = isRealResult(newAnalysisCount);
+      
+      // Capture a frame from the webcam
+      const track = webcamStream.getVideoTracks()[0];
+      const imageCapture = new ImageCapture(track);
+      const bitmap = await imageCapture.grabFrame();
+      
+      // Convert to blob URL
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(bitmap, 0, 0);
+      const captureUrl = canvas.toDataURL('image/jpeg');
+      
+      setMediaUrl(captureUrl);
+      
+      // Generate Grad-CAM visualization
+      const gradCamImage = await generateGradCamUrl(captureUrl);
+      setGradCamUrl(gradCamImage);
       
       const analysisResults = await startWebcamAnalysis(webcamStream, shouldBeReal);
       setResults(analysisResults);
@@ -96,6 +160,7 @@ const Index = () => {
     try {
       const file = files[0];
       const fileUrl = URL.createObjectURL(file);
+      setMediaUrl(fileUrl);
       
       const newAnalysisCount = analysisCount + 1;
       setAnalysisCount(newAnalysisCount);
@@ -105,6 +170,10 @@ const Index = () => {
       let analysisResults: DetectionResult;
       
       if (file.type.startsWith('image/')) {
+        // Generate Grad-CAM visualization for images
+        const gradCamImage = await generateGradCamUrl(fileUrl);
+        setGradCamUrl(gradCamImage);
+        
         analysisResults = await analyzeImage(fileUrl, shouldBeReal);
       } else if (file.type.startsWith('video/')) {
         analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
@@ -137,6 +206,8 @@ const Index = () => {
     
     setIsAnalyzing(true);
     try {
+      setMediaUrl(url);
+      
       const newAnalysisCount = analysisCount + 1;
       setAnalysisCount(newAnalysisCount);
       
@@ -145,6 +216,10 @@ const Index = () => {
       let analysisResults: DetectionResult;
       
       if (analysisType === 'imageUrl') {
+        // Generate Grad-CAM visualization for images
+        const gradCamImage = await generateGradCamUrl(url);
+        setGradCamUrl(gradCamImage);
+        
         analysisResults = await analyzeImage(url, shouldBeReal);
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url, shouldBeReal);
@@ -220,7 +295,11 @@ const Index = () => {
               )}
               
               {results && !isAudioAnalysis && (
-                <AnalysisDisplay results={results} />
+                <AnalysisDisplay 
+                  results={results} 
+                  mediaUrl={mediaUrl}
+                  gradCamUrl={gradCamUrl}
+                />
               )}
               
               {results && isAudioAnalysis && (

@@ -11,6 +11,18 @@ import { DetectionResult } from '@/services/detectionService';
 import { generatePDFReport } from '@/utils/reportGenerator';
 import { toast } from './ui/use-toast';
 
+interface AudioAnalysis {
+  pitchConsistency: number;
+  frequencyDistortion: number;
+  artificialPatterns: number;
+  suspiciousSegments: {
+    timestamp: number;
+    duration: number;
+    confidence: number;
+    type: string;
+  }[];
+}
+
 interface AudioAnalysisDisplayProps {
   results: DetectionResult;
   audioUrl?: string;
@@ -23,13 +35,16 @@ const AudioAnalysisDisplay = ({ results, audioUrl }: AudioAnalysisDisplayProps) 
   
   const { confidence, analysis, metadata, isManipulated, classification, riskLevel } = results;
   
-  if (!analysis.audioAnalysis) {
+  // Type assertion for audioAnalysis
+  const audioAnalysis = analysis.audioAnalysis as AudioAnalysis | undefined;
+  
+  if (!audioAnalysis) {
     return <div className="p-6 text-center">No audio analysis data available</div>;
   }
   
-  const { pitchConsistency, frequencyDistortion, artificialPatterns, suspiciousSegments } = analysis.audioAnalysis;
+  const { pitchConsistency, frequencyDistortion, artificialPatterns, suspiciousSegments } = audioAnalysis;
   
-  const audioDuration = metadata.audioDuration || 30; // fallback to 30 seconds
+  const audioDuration = metadata.duration || 30; // fallback to 30 seconds
   
   const pieChartData = [
     { name: 'Manipulated', value: confidence },
@@ -71,7 +86,7 @@ const AudioAnalysisDisplay = ({ results, audioUrl }: AudioAnalysisDisplayProps) 
   
   const handleDownloadReport = () => {
     try {
-      generatePDFReport(results);
+      generatePDFReport(results, audioUrl);
       toast({
         title: "Report generated",
         description: "Your analysis report has been downloaded as a PDF.",
