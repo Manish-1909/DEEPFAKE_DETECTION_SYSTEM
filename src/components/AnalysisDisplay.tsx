@@ -15,7 +15,7 @@ interface AnalysisDisplayProps {
   results: DetectionResult;
 }
 
-const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
+const AnalysisDisplay = ({ results }: AnalysisDisplayProps) => {
   const { confidence, analysis, metadata, isManipulated, classification, riskLevel } = results;
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const [hoveredRegion, setHoveredRegion] = useState<number | null>(null);
@@ -128,7 +128,6 @@ const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
 
   const activeFrame = getActiveFrame();
 
-  // Enhanced interactive heatmap visualization based on analysis data
   const renderHeatmap = () => {
     const heatmapData = analysis.heatmapData || {
       regions: [{ x: 50, y: 50, intensity: 0.2, radius: 30 }],
@@ -150,7 +149,6 @@ const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
           {metadata.type === 'image' ? 'Image Analysis' : `Frame at ${(activeFrame?.timestamp || 0) / 1000}s`}
         </div>
         
-        {/* Zoom controls */}
         <div className="absolute top-2 right-2 flex gap-2">
           <Button 
             variant="outline" 
@@ -172,7 +170,6 @@ const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
           </Button>
         </div>
         
-        {/* Render each heatmap region with interactive hover effect */}
         {heatmapData.regions.map((region, index) => (
           <motion.div
             key={index}
@@ -194,14 +191,12 @@ const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
           />
         ))}
         
-        {/* Highlight info for hovered region */}
         {hoveredRegion !== null && heatmapData.regions[hoveredRegion] && (
           <div className="absolute bottom-2 left-2 bg-black/80 text-white text-xs p-2 rounded-md">
             Manipulation confidence: {(heatmapData.regions[hoveredRegion].intensity * 100).toFixed(1)}%
           </div>
         )}
         
-        {/* Overall heatmap gradient overlay */}
         <div 
           className="absolute inset-0 pointer-events-none" 
           style={{
@@ -216,7 +211,6 @@ const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
     );
   };
 
-  // Dynamic confidence meter with animated progress
   const renderConfidenceMeter = () => {
     const getGradient = () => {
       if (confidence < 30) return 'bg-gradient-to-r from-green-300 to-green-500';
@@ -343,7 +337,6 @@ const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
               </div>
             </div>
 
-            {/* AI Explainability Feature */}
             <div className="space-y-4">
               <h4 className="font-medium text-sm text-gray-600">AI Explanation</h4>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -472,7 +465,6 @@ const AnalysisDisplay = ({ onSelect, results }: AnalysisDisplayProps) => {
                 </div>
               )}
               
-              {/* Enhanced interactive heatmap visualization */}
               {renderHeatmap()}
               
               <div className="bg-gray-50 rounded-lg p-4 max-w-3xl mx-auto">
