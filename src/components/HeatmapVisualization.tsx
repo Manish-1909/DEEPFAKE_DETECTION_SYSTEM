@@ -24,6 +24,7 @@ interface HeatmapVisualizationProps {
   };
   gradCamUrl?: string | null;
   frameImageUrl?: string | null;
+  isDeepfake?: boolean;
 }
 
 const HeatmapVisualization = ({ 
@@ -31,7 +32,8 @@ const HeatmapVisualization = ({
   mediaType, 
   frameInfo, 
   gradCamUrl,
-  frameImageUrl 
+  frameImageUrl,
+  isDeepfake = true
 }: HeatmapVisualizationProps) => {
   const [hoveredRegion, setHoveredRegion] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -71,16 +73,31 @@ const HeatmapVisualization = ({
   // Determine which image to display
   const displayImageUrl = showGradCam ? gradCamUrl : frameImageUrl || gradCamUrl;
   
+  // For reporting accuracy ranges based on confidence
+  const getConfidenceRange = (intensity: number) => {
+    if (intensity > 0.85) return "Very High";
+    if (intensity > 0.7) return "High";
+    if (intensity > 0.5) return "Moderate";
+    if (intensity > 0.3) return "Low";
+    return "Very Low";
+  };
+  
   console.log("HeatmapVisualization rendering with:", {
     mediaType,
     visualizableMediaType,
     hasGradCam: !!gradCamUrl,
     hasFrameImage: !!frameImageUrl,
-    showingGradCam: showGradCam
+    showingGradCam: showGradCam,
+    isDeepfake
   });
   
   return (
     <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300 dark:bg-gray-800 dark:border-gray-700">
+      {/* Classification Banner */}
+      <div className={`absolute top-0 left-0 right-0 z-10 py-1 text-center text-white text-sm font-semibold ${isDeepfake ? 'bg-red-500' : 'bg-green-500'}`}>
+        {isDeepfake ? 'DEEPFAKE DETECTED' : 'AUTHENTIC CONTENT'}
+      </div>
+      
       {/* GradCAM View or Frame Image */}
       {displayImageUrl ? (
         <div 
@@ -103,7 +120,7 @@ const HeatmapVisualization = ({
       )}
       
       {/* Zoom and visualization controls */}
-      <div className="absolute top-2 right-2 flex gap-2">
+      <div className="absolute top-10 right-2 flex gap-2">
         <Button 
           variant="outline" 
           size="sm" 
@@ -159,7 +176,8 @@ const HeatmapVisualization = ({
       {/* Highlight info for hovered region */}
       {hoveredRegion !== null && heatmapData.regions[hoveredRegion] && (
         <div className="absolute bottom-2 left-2 bg-black/80 text-white text-xs p-2 rounded-md">
-          Manipulation probability: {(heatmapData.regions[hoveredRegion].intensity * 100).toFixed(1)}%
+          <div>Manipulation probability: {(heatmapData.regions[hoveredRegion].intensity * 100).toFixed(1)}%</div>
+          <div>Confidence: {getConfidenceRange(heatmapData.regions[hoveredRegion].intensity)}</div>
         </div>
       )}
       

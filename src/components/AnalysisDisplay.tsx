@@ -1,5 +1,6 @@
+
 import React, { useState, useRef } from 'react';
-import { FileImage, FileVideo, Headphones, AlertTriangle, FileDown } from 'lucide-react';
+import { FileImage, FileVideo, Headphones, AlertTriangle, FileDown, Info } from 'lucide-react';
 import { generatePDFReport } from '@/utils/reportGenerator';
 import { toast } from './ui/use-toast';
 import { v4 as uuidv4 } from 'uuid';
@@ -29,8 +30,8 @@ interface DetectionResult {
 
 interface AnalysisDisplayProps {
   results: DetectionResult;
-  mediaUrl?: string;
-  gradCamUrl?: string;
+  mediaUrl?: string | null;
+  gradCamUrl?: string | null;
   frameImages: string[];
 }
 
@@ -84,6 +85,9 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
       <div className="flex items-center gap-2">
         <AlertTriangle className={`w-5 h-5 ${alertColorClass}`} />
         <span className={`font-semibold ${alertColorClass}`}>{alertText}</span>
+        <Badge variant={isDeepfake ? "destructive" : "success"} className="ml-2">
+          {isDeepfake ? 'FAKE' : 'REAL'}
+        </Badge>
       </div>
     );
   };
@@ -102,6 +106,11 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
               controls
               className="w-full h-full object-contain"
             />
+          </div>
+          <div className="mt-2 text-center">
+            <Badge variant={isManipulated ? "destructive" : "success"} className="text-sm">
+              {isManipulated ? 'DEEPFAKE' : 'AUTHENTIC'}
+            </Badge>
           </div>
         </div>
         
@@ -206,6 +215,7 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
           frameInfo={suspiciousFrames[0]}
           gradCamUrl={gradCamUrl}
           frameImageUrl={frameImages[0] || null}
+          isDeepfake={isManipulated}
         />
       </div>
     );
@@ -255,11 +265,16 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto p-6">
-      <h2 className="text-2xl font-bold text-center">Analysis Results</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Analysis Results</h2>
+        <Badge variant={isManipulated ? "destructive" : "success"} className="text-md px-3 py-1">
+          {isManipulated ? 'DEEPFAKE DETECTED' : 'AUTHENTIC CONTENT'}
+        </Badge>
+      </div>
 
       {renderVideoPlayerAndFrames()}
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             <tr>
@@ -362,6 +377,21 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
             <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
               <div className="text-sm text-purple-600 dark:text-purple-400">F1-Score</div>
               <div className="text-xl font-semibold text-purple-700 dark:text-purple-300">{(86 + Math.random() * 5).toFixed(1)}%</div>
+            </div>
+          </div>
+          <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50">
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-blue-500 mt-0.5" />
+              <div>
+                <h4 className="font-semibold text-gray-700 dark:text-gray-300">Confidence Range Interpretation</h4>
+                <ul className="mt-2 text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  <li>Very High (85-100%): Extremely confident in the determination</li>
+                  <li>High (70-85%): Highly confident in the determination</li>
+                  <li>Moderate (50-70%): Reasonable confidence in the analysis</li>
+                  <li>Low (30-50%): Analysis has low confidence</li>
+                  <li>Very Low (0-30%): Analysis has very low confidence</li>
+                </ul>
+              </div>
             </div>
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-4">
