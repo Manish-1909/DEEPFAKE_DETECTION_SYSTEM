@@ -16,8 +16,9 @@ import {
   startWebcamAnalysis 
 } from "@/services/detectionService";
 import { Button } from "@/components/ui/button";
-import { Camera } from "lucide-react";
+import { Camera, Sun, Moon } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
+import { ThemeProvider, useTheme } from "@/hooks/useTheme";
 
 // Add polyfill for ImageCapture if needed
 // Use proper type declarations
@@ -63,7 +64,7 @@ if (!('ImageCapture' in window)) {
   };
 }
 
-const Index = () => {
+const IndexContent = () => {
   const [analysisType, setAnalysisType] = useState<AnalysisType | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState<DetectionResult | null>(null);
@@ -73,6 +74,7 @@ const Index = () => {
   const [gradCamUrl, setGradCamUrl] = useState<string | null>(null);
   const [analysisCount, setAnalysisCount] = useState(0);
   const [latestEntry, setLatestEntry] = useState<AnalysisEntry | undefined>();
+  const { theme, toggleTheme } = useTheme();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const isRealResult = (count: number) => count % 2 === 0;
@@ -332,8 +334,14 @@ const Index = () => {
   const isAudioAnalysis = results?.metadata.type === 'audio';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted dark:from-gray-900 dark:to-gray-950">
       <div className="container mx-auto px-4">
+        <div className="flex justify-end py-4">
+          <Button variant="outline" size="sm" onClick={toggleTheme} className="gap-2">
+            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </Button>
+        </div>
         <Header />
         <motion.div
           initial={{ opacity: 0 }}
@@ -341,6 +349,15 @@ const Index = () => {
           transition={{ duration: 0.5, delay: 0.6 }}
           className="max-w-6xl mx-auto space-y-8"
         >
+          <div className="text-center mb-8 mt-2">
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500">
+              ML-based Deepfake Detection System
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">
+              Advanced multi-feature analysis for enhanced data security and privacy
+            </p>
+          </div>
+          
           <AnalysisOptions onSelect={handleAnalysisTypeSelect} />
           
           {analysisType && (
@@ -395,6 +412,14 @@ const Index = () => {
         </motion.div>
       </div>
     </div>
+  );
+};
+
+const Index = () => {
+  return (
+    <ThemeProvider>
+      <IndexContent />
+    </ThemeProvider>
   );
 };
 

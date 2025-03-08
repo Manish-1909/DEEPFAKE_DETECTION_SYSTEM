@@ -31,8 +31,8 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo, gradCamUrl }:
   const [showGradCam, setShowGradCam] = useState(true);
   
   const HEATMAP_COLORS = [
-    'rgba(0, 255, 0, 0.1)',   // Lowest intensity (green)
-    'rgba(255, 255, 0, 0.5)', // Medium intensity (yellow)
+    'rgba(0, 255, 0, 0.2)',   // Lowest intensity (green)
+    'rgba(255, 255, 0, 0.6)', // Medium intensity (yellow)
     'rgba(255, 0, 0, 0.8)'    // Highest intensity (red)
   ];
   
@@ -59,7 +59,7 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo, gradCamUrl }:
   };
   
   return (
-    <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300">
+    <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300 dark:bg-gray-800 dark:border-gray-700">
       {/* GradCAM View */}
       {gradCamUrl && showGradCam ? (
         <div 
@@ -74,7 +74,7 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo, gradCamUrl }:
         </div>
       ) : (
         <div 
-          className="w-full h-full flex items-center justify-center text-gray-500"
+          className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400"
           style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.3s ease' }}
         >
           {mediaType === 'image' ? 'Image Analysis' : `Frame at ${(frameInfo?.timestamp || 0) / 1000}s`}
@@ -87,7 +87,7 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo, gradCamUrl }:
           variant="outline" 
           size="sm" 
           onClick={handleZoomIn} 
-          className="bg-white/80 hover:bg-white"
+          className="bg-white/80 hover:bg-white dark:bg-black/50 dark:hover:bg-black/70"
           disabled={zoomLevel >= 3}
         >
           <ZoomIn size={16} />
@@ -96,7 +96,7 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo, gradCamUrl }:
           variant="outline" 
           size="sm" 
           onClick={handleZoomOut}
-          className="bg-white/80 hover:bg-white"
+          className="bg-white/80 hover:bg-white dark:bg-black/50 dark:hover:bg-black/70"
           disabled={zoomLevel <= 1}
         >
           <Search size={16} />
@@ -106,7 +106,7 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo, gradCamUrl }:
             variant="outline"
             size="sm"
             onClick={toggleGradCam}
-            className="bg-white/80 hover:bg-white text-xs"
+            className="bg-white/80 hover:bg-white text-xs dark:bg-black/50 dark:hover:bg-black/70"
           >
             {showGradCam ? "Hide Grad-CAM" : "Show Grad-CAM"}
           </Button>
@@ -159,7 +159,11 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo, gradCamUrl }:
       {/* GradCam explanation */}
       {gradCamUrl && showGradCam && (
         <div className="absolute bottom-2 left-2 bg-black/80 text-white text-xs p-2 rounded-md max-w-xs">
-          Grad-CAM highlights regions that most influenced the model's decision with warmer colors showing manipulated areas.
+          {mediaType === 'video' && frameInfo ? (
+            <>Frame at {(frameInfo.timestamp / 1000).toFixed(1)}s: Grad-CAM highlights manipulation probabilities.</>
+          ) : (
+            <>Grad-CAM highlights regions that most influenced the model's decision with warmer colors showing manipulated areas.</>
+          )}
         </div>
       )}
     </div>
