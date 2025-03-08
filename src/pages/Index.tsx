@@ -241,6 +241,10 @@ const Index = () => {
         analysisResults = await analyzeImage(fileUrl, shouldBeReal);
       } else if (file.type.startsWith('video/')) {
         analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
+        
+        // Generate Grad-CAM for videos as well
+        const gradCamImage = await generateGradCamUrl(fileUrl);
+        setGradCamUrl(gradCamImage);
       } else if (file.type.startsWith('audio/')) {
         analysisResults = await analyzeAudio(fileUrl, shouldBeReal);
         setAudioUrl(fileUrl);
@@ -292,6 +296,10 @@ const Index = () => {
         analysisResults = await analyzeImage(url, shouldBeReal);
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url, shouldBeReal);
+        
+        // Generate Grad-CAM for videos as well
+        const gradCamImage = await generateGradCamUrl(url);
+        setGradCamUrl(gradCamImage);
       } else if (analysisType === 'audioUrl') {
         analysisResults = await analyzeAudio(url, shouldBeReal);
         setAudioUrl(url);
