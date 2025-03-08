@@ -237,7 +237,7 @@ const IndexContent = () => {
       
       toast({
         title: "Analysis complete",
-        description: `Webcam capture analyzed and determined to be ${shouldBeReal ? 'authentic' : 'a deepfake'}.`,
+        description: `Webcam capture analyzed with ${analysisResults.confidence.toFixed(1)}% confidence.`,
       });
     } catch (error) {
       toast({
