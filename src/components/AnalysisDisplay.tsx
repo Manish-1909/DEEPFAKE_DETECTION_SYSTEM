@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { FileImage, FileVideo, Headphones, AlertTriangle, FileDown } from 'lucide-react';
 import { generatePDFReport } from '@/utils/reportGenerator';
@@ -94,7 +93,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
     
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Video Player */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
           <h3 className="text-lg font-semibold mb-4">Source Video</h3>
           <div className="aspect-video rounded-lg overflow-hidden bg-black">
@@ -107,7 +105,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
           </div>
         </div>
         
-        {/* Frame Analysis */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
           <h3 className="text-lg font-semibold mb-4">Frame Analysis</h3>
           <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
@@ -124,7 +121,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
             )}
           </div>
           
-          {/* Frame Navigation */}
           {frameImages.length > 1 && (
             <div className="flex justify-center mt-3 gap-2">
               {frameImages.map((_, index) => (
@@ -145,7 +141,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
   const renderFrameAnalysis = () => {
     if (frameImages.length === 0) return null;
     
-    // For non-video media or if already displaying the player, show a more compact view
     if (metadata.type !== 'video' || !mediaUrl) {
       const displayFrames = suspiciousFrames.slice(0, 4).map((frame, index) => {
         const frameUrl = index < frameImages.length ? frameImages[index] : (gradCamUrl || mediaUrl || '');
@@ -187,7 +182,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
   const renderGradCamVisualization = () => {
     if (!gradCamUrl) return null;
     
-    // Create dummy heatmap data if real data isn't available
     const heatmapData = results.analysis.heatmapData || {
       regions: [
         { x: 30, y: 40, intensity: 0.8, radius: 25 },
@@ -196,6 +190,8 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
       ],
       overallIntensity: 0.7
     };
+    
+    const visualizableMediaType = metadata.type === 'audio' ? 'image' : metadata.type;
     
     return (
       <div className="space-y-4 mt-6">
@@ -206,7 +202,7 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
         
         <HeatmapVisualization 
           heatmapData={heatmapData}
-          mediaType={metadata.type}
+          mediaType={visualizableMediaType}
           frameInfo={suspiciousFrames[0]}
           gradCamUrl={gradCamUrl}
           frameImageUrl={frameImages[0] || null}
@@ -219,7 +215,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
     const confidenceLevel = confidence;
     const textColorClass = confidenceLevel > 70 ? 'text-green-500' : confidenceLevel > 40 ? 'text-yellow-500' : 'text-red-500';
 
-    // Add confidence range interpretation
     let rangeText = "";
     if (confidenceLevel > 85) {
       rangeText = "Very High certainty (85-100%)";
@@ -245,7 +240,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
     );
   };
 
-  // Data for charts
   const pieChartData = [
     { name: 'Manipulated', value: confidence },
     { name: 'Authentic', value: 100 - confidence },
@@ -263,7 +257,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
     <div className="space-y-6 max-w-4xl mx-auto p-6">
       <h2 className="text-2xl font-bold text-center">Analysis Results</h2>
 
-      {/* Video Player & Frame Analysis (only for video media) */}
       {renderVideoPlayerAndFrames()}
 
       <div className="overflow-x-auto">
@@ -310,10 +303,8 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
         </table>
       </div>
 
-      {/* GradCAM Visualization */}
       {renderGradCamVisualization()}
 
-      {/* Visualization section with charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Detection Confidence</h3>
@@ -356,7 +347,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
         </div>
       </div>
 
-      {/* Analysis Interpretation */}
       <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Analysis Interpretation</h3>
         <div className="space-y-2">
@@ -383,7 +373,6 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
         </div>
       </div>
 
-      {/* Display suspicious frames for images/video */}
       {renderFrameAnalysis()}
 
       <div className="text-center">
