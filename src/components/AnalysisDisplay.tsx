@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FileDown, AlertCircle, Eye, EyeOff, Sun, Moon } from 'lucide-react';
+import { FileDown, AlertCircle, Eye, EyeOff, Sun, Moon, ImageIcon, FilmIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -18,11 +18,12 @@ interface AnalysisDisplayProps {
   results: DetectionResult;
   mediaUrl?: string | null;
   gradCamUrl?: string | null;
+  frameImages?: string[];
 }
 
-const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps) => {
+const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl, frameImages = [] }: AnalysisDisplayProps) => {
   const [showHeatmap, setShowHeatmap] = useState(true);
-  const [selectedFrame, setSelectedFrame] = useState<number | null>(null);
+  const [selectedFrame, setSelectedFrame] = useState<number | null>(0); // Default to first frame if available
   const { theme, toggleTheme } = useTheme();
   const { confidence, analysis, metadata, isManipulated, classification, riskLevel } = results;
   
@@ -39,15 +40,26 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
     { name: 'Authentic', value: 100 - confidence },
   ];
   
-  const barChartData = [
-    { name: 'Face Consistency', value: analysis.faceConsistency, fill: BAR_COLORS[0] },
-    { name: 'Lighting Consistency', value: analysis.lightingConsistency, fill: BAR_COLORS[1] },
-    { name: 'Artifacts Score', value: analysis.artifactsScore, fill: BAR_COLORS[2] },
+  // For a single bar chart with multiple sections
+  const combinedBarChartData = [
+    { 
+      name: 'Analysis Metrics',
+      faceConsistency: analysis.faceConsistency,
+      lightingConsistency: analysis.lightingConsistency,
+      artifactsScore: analysis.artifactsScore
+    }
   ];
   
   const handleDownloadReport = () => {
     try {
-      generatePDFReport(results, mediaUrl || undefined, gradCamUrl || undefined);
+      // Pass frame images to the report generator as well
+      generatePDFReport(
+        results, 
+        mediaUrl || undefined, 
+        gradCamUrl || undefined,
+        frameImages.length > 0 ? frameImages : undefined
+      );
+      
       toast({
         title: "Report generated",
         description: "Your analysis report has been downloaded as a PDF.",
@@ -121,46 +133,58 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
 
   // Function to render video frames for selection
   const renderVideoFrames = () => {
-    if (metadata.type !== 'video' || !suspiciousFrames || suspiciousFrames.length === 0) {
+    if (metadata.type !== 'video' || (!frameImages || frameImages.length === 0) && (!suspiciousFrames || suspiciousFrames.length === 0)) {
       return null;
     }
 
-    // Take up to 4 frames to display
-    const framesToShow = suspiciousFrames.slice(0, 4);
+    // Use frame images if available, otherwise use suspicious frames
+    const framesToDisplay = frameImages.length > 0 
+      ? frameImages.slice(0, 4).map((url, i) => ({ url, timestamp: i * 1000 }))
+      : suspiciousFrames.slice(0, 4).map(frame => ({ 
+          url: gradCamUrl || mediaUrl, 
+          timestamp: frame.timestamp,
+          confidence: frame.confidence
+        }));
     
     return (
       <div className="space-y-2">
-        <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">Suspicious Frames</h4>
+        <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">
+          {frameImages.length > 0 ? "Video Frames" : "Suspicious Frames"}
+        </h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {framesToShow.map((frame, index) => {
-            // Create a frame thumbnail - for demo we'll use the gradCamUrl with different opacity
-            const frameUrl = gradCamUrl || mediaUrl;
-            
-            return (
-              <div 
-                key={frame.timestamp} 
-                className={`relative cursor-pointer rounded-md overflow-hidden border-2 ${selectedFrame === index ? 'border-primary' : 'border-transparent'}`}
-                onClick={() => setSelectedFrame(index)}
-              >
-                <div className="aspect-video bg-black/10 dark:bg-white/5">
-                  {frameUrl && (
-                    <img
-                      src={frameUrl}
-                      alt={`Frame at ${(frame.timestamp / 1000).toFixed(1)}s`}
-                      className="w-full h-full object-cover"
-                      style={{ opacity: 0.7 + (index * 0.1) }} // Simulate different frames
-                    />
-                  )}
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
-                  {(frame.timestamp / 1000).toFixed(1)}s - {frame.confidence.toFixed(0)}%
-                </div>
+          {framesToDisplay.map((frame, index) => (
+            <div 
+              key={frame.timestamp || index} 
+              className={`relative cursor-pointer rounded-md overflow-hidden border-2 ${selectedFrame === index ? 'border-primary' : 'border-transparent'}`}
+              onClick={() => setSelectedFrame(index)}
+            >
+              <div className="aspect-video bg-black/10 dark:bg-white/5">
+                {frame.url && (
+                  <img
+                    src={frame.url}
+                    alt={`Frame ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                )}
               </div>
-            );
-          })}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
+                {frame.timestamp ? `${(frame.timestamp / 1000).toFixed(1)}s` : `Frame ${index + 1}`}
+                {frame.confidence && ` - ${frame.confidence.toFixed(0)}%`}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
+  };
+
+  // Get current frame image URL
+  const getCurrentFrameUrl = () => {
+    if (metadata.type !== 'video' || !frameImages || frameImages.length === 0 || selectedFrame === null) {
+      return null;
+    }
+    
+    return selectedFrame < frameImages.length ? frameImages[selectedFrame] : null;
   };
   
   return (
@@ -231,55 +255,55 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                   />
                 ) : null}
               </div>
+              {metadata.type === 'image' && (
+                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                  <ImageIcon className="h-3 w-3 mr-1" />
+                  {metadata.resolution || 'Image analysis'}
+                </div>
+              )}
+              {metadata.type === 'video' && (
+                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                  <FilmIcon className="h-3 w-3 mr-1" />
+                  {metadata.duration ? `${metadata.duration.toFixed(1)}s` : 'Video analysis'}
+                </div>
+              )}
             </div>
 
-            {metadata.type === 'video' ? (
-              <div className="space-y-2">
-                {selectedFrame !== null && suspiciousFrames[selectedFrame] ? (
-                  <>
-                    <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">
-                      Grad-CAM Analysis - Frame at {(suspiciousFrames[selectedFrame].timestamp / 1000).toFixed(1)}s
-                    </h4>
-                    <div className="relative aspect-video bg-black/10 rounded-lg overflow-hidden dark:bg-white/5">
-                      {gradCamUrl && (
-                        <img 
-                          src={gradCamUrl} 
-                          alt={`Frame analysis at ${(suspiciousFrames[selectedFrame].timestamp / 1000).toFixed(1)}s`} 
-                          className="w-full h-full object-contain"
-                        />
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Manipulation confidence: {suspiciousFrames[selectedFrame].confidence.toFixed(1)}%
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">Grad-CAM Visualization</h4>
-                    <div className="relative aspect-video bg-black/10 rounded-lg overflow-hidden dark:bg-white/5">
-                      {gradCamUrl && (
-                        <img 
-                          src={gradCamUrl} 
-                          alt="Grad-CAM visualization" 
-                          className="w-full h-full object-contain"
-                        />
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : gradCamUrl ? (
-              <div className="space-y-2">
-                <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">Grad-CAM Visualization</h4>
-                <div className="relative aspect-video bg-black/10 rounded-lg overflow-hidden dark:bg-white/5">
-                  <img 
-                    src={gradCamUrl} 
-                    alt="Grad-CAM visualization" 
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              </div>
-            ) : null}
+            <div className="space-y-2">
+              {metadata.type === 'video' && selectedFrame !== null ? (
+                <>
+                  <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">
+                    Frame Analysis {frameImages && frameImages[selectedFrame] ? `- Frame ${selectedFrame + 1}` : ''}
+                  </h4>
+                  <div className="relative aspect-video bg-black/10 rounded-lg overflow-hidden dark:bg-white/5">
+                    {getCurrentFrameUrl() ? (
+                      <img 
+                        src={getCurrentFrameUrl() || ''} 
+                        alt={`Frame ${selectedFrame + 1}`} 
+                        className="w-full h-full object-contain"
+                      />
+                    ) : gradCamUrl ? (
+                      <img 
+                        src={gradCamUrl} 
+                        alt="Frame analysis" 
+                        className="w-full h-full object-contain"
+                      />
+                    ) : null}
+                  </div>
+                </>
+              ) : gradCamUrl ? (
+                <>
+                  <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">Grad-CAM Visualization</h4>
+                  <div className="relative aspect-video bg-black/10 rounded-lg overflow-hidden dark:bg-white/5">
+                    <img 
+                      src={gradCamUrl} 
+                      alt="Grad-CAM visualization" 
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         )}
 
@@ -365,7 +389,7 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
               
               <div className="space-y-4">
                 <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">Confidence Distribution</h4>
-                <div className="h-64 w-full bg-white/5 p-4 rounded-lg dark:bg-white/5">
+                <div className="h-64 w-full bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -391,35 +415,33 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
             </div>
             
             <div className="space-y-4">
-              <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">Metric Comparison</h4>
-              <div className="h-64 w-full bg-white/5 p-4 rounded-lg dark:bg-white/5">
+              <h4 className="font-medium text-sm text-gray-600 dark:text-gray-300">Metrics Comparison</h4>
+              <div className="h-64 w-full bg-white dark:bg-gray-800 p-4 rounded-lg border dark:border-gray-700">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={barChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <BarChart data={combinedBarChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} />
                     <XAxis 
                       dataKey="name" 
-                      tick={{ fill: '#888', fontSize: 12 }}
-                      axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                      tick={{ fill: theme === 'dark' ? '#aaa' : '#666', fontSize: 12 }}
+                      axisLine={{ stroke: theme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }}
                     />
                     <YAxis 
                       domain={[0, 100]} 
-                      tick={{ fill: '#888', fontSize: 12 }}
-                      axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                      tick={{ fill: theme === 'dark' ? '#aaa' : '#666', fontSize: 12 }}
+                      axisLine={{ stroke: theme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }}
                       tickFormatter={(value) => `${value}%`}
                     />
                     <Tooltip content={<CustomBarTooltip />} />
                     <Legend />
-                    {barChartData.map((entry, index) => (
-                      <Bar 
-                        key={`bar-${index}`}
-                        dataKey="value" 
-                        name={entry.name}
-                        fill={entry.fill} 
-                        background={{ fill: 'rgba(255,255,255,0.05)' }}
-                      />
-                    ))}
+                    <Bar dataKey="faceConsistency" name="Face Consistency" fill={BAR_COLORS[0]} />
+                    <Bar dataKey="lightingConsistency" name="Lighting Consistency" fill={BAR_COLORS[1]} />
+                    <Bar dataKey="artifactsScore" name="Artifacts Score" fill={BAR_COLORS[2]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              
+              <div className="text-sm text-center text-gray-500 dark:text-gray-400 mt-2">
+                Face and lighting consistency should be high for authentic media (green), while artifacts score should be low (blue).
               </div>
             </div>
           </TabsContent>
@@ -453,26 +475,27 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                 </>
               ) : metadata.type === 'video' ? (
                 <div className="relative">
-                  {selectedFrame !== null && suspiciousFrames[selectedFrame] ? (
+                  {selectedFrame !== null ? (
                     <div className="p-6 flex flex-col items-center">
                       <h5 className="text-sm font-medium mb-2">
-                        Frame at {(suspiciousFrames[selectedFrame].timestamp / 1000).toFixed(1)}s
+                        {frameImages && frameImages.length > 0 && selectedFrame < frameImages.length 
+                          ? `Frame ${selectedFrame + 1} Analysis` 
+                          : suspiciousFrames.length > 0 && selectedFrame < suspiciousFrames.length
+                          ? `Frame at ${(suspiciousFrames[selectedFrame].timestamp / 1000).toFixed(1)}s`
+                          : 'Frame Analysis'}
                       </h5>
-                      {gradCamUrl && (
-                        <img 
-                          src={gradCamUrl} 
-                          alt={`Frame analysis at ${(suspiciousFrames[selectedFrame].timestamp / 1000).toFixed(1)}s`} 
-                          className="max-h-[300px] object-contain"
-                        />
-                      )}
+                      
                       {showHeatmap && analysis.heatmapData && (
                         <div className="absolute inset-0">
                           <HeatmapVisualization 
                             heatmapData={analysis.heatmapData} 
                             mediaType="image"
                             gradCamUrl={gradCamUrl || undefined}
+                            frameImageUrl={getCurrentFrameUrl() || undefined}
                             frameInfo={{
-                              timestamp: suspiciousFrames[selectedFrame].timestamp
+                              timestamp: suspiciousFrames.length > 0 && selectedFrame < suspiciousFrames.length
+                                ? suspiciousFrames[selectedFrame].timestamp
+                                : (selectedFrame + 1) * 1000 // Approximate timestamp for frame images
                             }}
                           />
                         </div>
@@ -490,27 +513,50 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
             {/* Video frames section for visualization tab */}
             {metadata.type === 'video' && (
               <div className="grid grid-cols-4 gap-2 mt-2">
-                {suspiciousFrames.slice(0, 8).map((frame, index) => (
-                  <div 
-                    key={frame.timestamp} 
-                    className={`relative cursor-pointer rounded-md overflow-hidden border-2 ${selectedFrame === index ? 'border-primary' : 'border-transparent'}`}
-                    onClick={() => setSelectedFrame(index)}
-                  >
-                    <div className="aspect-video bg-black/10 dark:bg-white/5">
-                      {gradCamUrl && (
+                {frameImages && frameImages.length > 0 ? (
+                  // Show actual frames from the video if available
+                  frameImages.map((frameUrl, index) => (
+                    <div 
+                      key={index} 
+                      className={`relative cursor-pointer rounded-md overflow-hidden border-2 ${selectedFrame === index ? 'border-primary' : 'border-transparent'}`}
+                      onClick={() => setSelectedFrame(index)}
+                    >
+                      <div className="aspect-video bg-black/10 dark:bg-white/5">
                         <img
-                          src={gradCamUrl}
-                          alt={`Frame at ${(frame.timestamp / 1000).toFixed(1)}s`}
+                          src={frameUrl}
+                          alt={`Frame ${index + 1}`}
                           className="w-full h-full object-cover"
-                          style={{ opacity: 0.6 + (index * 0.05) }} // Simulate different frames
                         />
-                      )}
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
+                        Frame {index + 1}
+                      </div>
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
-                      {(frame.timestamp / 1000).toFixed(1)}s
+                  ))
+                ) : suspiciousFrames.length > 0 ? (
+                  // Fall back to suspicious frames if no actual frames available
+                  suspiciousFrames.slice(0, 8).map((frame, index) => (
+                    <div 
+                      key={frame.timestamp} 
+                      className={`relative cursor-pointer rounded-md overflow-hidden border-2 ${selectedFrame === index ? 'border-primary' : 'border-transparent'}`}
+                      onClick={() => setSelectedFrame(index)}
+                    >
+                      <div className="aspect-video bg-black/10 dark:bg-white/5">
+                        {gradCamUrl && (
+                          <img
+                            src={gradCamUrl}
+                            alt={`Frame at ${(frame.timestamp / 1000).toFixed(1)}s`}
+                            className="w-full h-full object-cover"
+                            style={{ opacity: 0.6 + (index * 0.05) }} // Simulate different frames
+                          />
+                        )}
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
+                        {(frame.timestamp / 1000).toFixed(1)}s
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : null}
               </div>
             )}
             
@@ -584,6 +630,25 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                   `The analyzed ${metadata.type} appears to be authentic with ${(100-confidence).toFixed(1)}% confidence. No significant manipulations were detected in our comprehensive analysis.`
                 }
               </p>
+              
+              <div className="mt-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                <h6 className="text-sm font-medium mb-2">For Non-Technical Users:</h6>
+                <p className="text-sm">
+                  {isManipulated ? 
+                    confidence > 90 ?
+                      "❌ This content is almost certainly fake or manipulated. We strongly recommend not trusting or sharing it." :
+                    confidence > 70 ?
+                      "⚠️ This content shows significant signs of being manipulated or artificially created. Be very cautious about trusting or sharing it." :
+                      "⚠️ This content shows some suspicious elements that could indicate manipulation. Exercise caution when sharing." :
+                    
+                    confidence < 10 ?
+                      "✅ This content appears to be completely authentic with very high confidence." :
+                    confidence < 30 ?
+                      "✅ This content shows strong signs of being authentic and unmodified." :
+                      "🟢 This content appears mostly authentic, but as with all media, maintain healthy skepticism."
+                  }
+                </p>
+              </div>
             </div>
             
             <div className="space-y-4">
@@ -592,12 +657,24 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <tbody className="bg-white divide-y divide-gray-200 text-sm dark:bg-gray-800 dark:divide-gray-700">
                     <tr>
+                      <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-900/50">Case ID</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{uuidv4().substring(0, 13).toUpperCase()}</td>
+                    </tr>
+                    <tr>
                       <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-900/50">Media Type</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{metadata.type}</td>
                     </tr>
                     <tr>
                       <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-900/50">Resolution</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{metadata.resolution || 'N/A'}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-900/50">Metadata</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {metadata.source ? `Source: ${metadata.source}` : ''}
+                        {metadata.created ? `, Created: ${metadata.created}` : ''}
+                        {!metadata.source && !metadata.created ? 'No metadata available' : ''}
+                      </td>
                     </tr>
                     {metadata.type === 'video' && (
                       <>
@@ -622,6 +699,22 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                     <tr>
                       <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-900/50">Analysis Time</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{(1 + Math.random() * 2).toFixed(1)} seconds</td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-900/50">Classification Range</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                            <div className="bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 h-2.5 rounded-full" style={{width: '100%'}}></div>
+                          </div>
+                          <span>0-100%</span>
+                        </div>
+                        <div className="flex justify-between mt-1 text-xs">
+                          <span>Authentic</span>
+                          <span>Uncertain</span>
+                          <span>Manipulated</span>
+                        </div>
+                      </td>
                     </tr>
                   </tbody>
                 </table>

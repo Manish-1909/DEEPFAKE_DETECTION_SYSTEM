@@ -16,9 +16,10 @@ import {
   startWebcamAnalysis 
 } from "@/services/detectionService";
 import { Button } from "@/components/ui/button";
-import { Camera, Sun, Moon } from "lucide-react";
+import { Camera, Sun, Moon, AlertTriangle } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import { ThemeProvider, useTheme } from "@/hooks/useTheme";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // Add polyfill for ImageCapture if needed
 // Use proper type declarations
@@ -72,12 +73,40 @@ const IndexContent = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [gradCamUrl, setGradCamUrl] = useState<string | null>(null);
+  const [frameImages, setFrameImages] = useState<string[]>([]);
   const [analysisCount, setAnalysisCount] = useState(0);
   const [latestEntry, setLatestEntry] = useState<AnalysisEntry | undefined>();
+  const [showSensitiveContentDialog, setShowSensitiveContentDialog] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+  const [userChoice, setUserChoice] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const isRealResult = (count: number) => count % 2 === 0;
+
+  useEffect(() => {
+    if (!userChoice) {
+      const choice = prompt("Please enter your choice:\n1: Analyze Image\n2: Analyze Video\n3: Analyze Audio\n4: Use Webcam");
+      if (choice) {
+        setUserChoice(choice);
+        
+        // Set analysis type based on user choice
+        switch (choice) {
+          case "1": setAnalysisType("image"); break;
+          case "2": setAnalysisType("video"); break;
+          case "3": setAnalysisType("audio"); break;
+          case "4": setAnalysisType("webcam"); break;
+          default: 
+            toast({
+              title: "Invalid choice",
+              description: "Please refresh and select a valid option (1-4)",
+              variant: "destructive"
+            });
+        }
+      }
+    }
+  }, [userChoice]);
 
   const handleAnalysisTypeSelect = (type: AnalysisType) => {
     setAnalysisType(type);
@@ -85,6 +114,7 @@ const IndexContent = () => {
     setAudioUrl(null);
     setMediaUrl(null);
     setGradCamUrl(null);
+    setFrameImages([]);
     if (webcamStream) {
       webcamStream.getTracks().forEach(track => track.stop());
       setWebcamStream(null);
@@ -114,6 +144,46 @@ const IndexContent = () => {
         variant: "destructive",
       });
     }
+  };
+
+  // Generate frame images for videos
+  const generateVideoFrameImages = (videoUrl: string, count = 4): Promise<string[]> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.src = videoUrl;
+      video.crossOrigin = "Anonymous";
+      const frameUrls: string[] = [];
+      
+      video.onloadedmetadata = () => {
+        const duration = video.duration;
+        const interval = duration / (count + 1);
+        let framesLoaded = 0;
+        
+        for (let i = 1; i <= count; i++) {
+          const time = interval * i;
+          video.currentTime = time;
+          
+          video.onseeked = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              frameUrls.push(canvas.toDataURL('image/jpeg'));
+              
+              framesLoaded++;
+              if (framesLoaded === count) {
+                resolve(frameUrls);
+              }
+            }
+          };
+        }
+      };
+      
+      video.onerror = () => resolve([]);
+      video.load();
+    });
   };
 
   // Generate a fake Grad-CAM image URL based on the original image
@@ -197,6 +267,10 @@ const IndexContent = () => {
       const gradCamImage = await generateGradCamUrl(captureUrl);
       setGradCamUrl(gradCamImage);
       
+      // Generate frame images (for webcam, we just use the same image multiple times with different effects)
+      const frameImgs = [captureUrl];
+      setFrameImages(frameImgs);
+      
       const analysisResults = await startWebcamAnalysis(webcamStream, shouldBeReal);
       setResults(analysisResults);
       
@@ -222,6 +296,21 @@ const IndexContent = () => {
   const handleFileAnalysis = async (files: File[]) => {
     if (files.length === 0) return;
     
+    // Check for sensitive content
+    const file = files[0];
+    if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+      setShowSensitiveContentDialog(true);
+      setPendingFiles(files);
+      return;
+    }
+    
+    // Process audio files directly as they don't need sensitive content warning
+    await processFiles(files);
+  };
+  
+  const processFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    
     setIsAnalyzing(true);
     try {
       const file = files[0];
@@ -239,14 +328,24 @@ const IndexContent = () => {
         // Generate Grad-CAM visualization for images
         const gradCamImage = await generateGradCamUrl(fileUrl);
         setGradCamUrl(gradCamImage);
+        setFrameImages([fileUrl]);
         
         analysisResults = await analyzeImage(fileUrl, shouldBeReal);
       } else if (file.type.startsWith('video/')) {
         analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
         
+        // Generate frame images for videos
+        const frameImgs = await generateVideoFrameImages(fileUrl);
+        setFrameImages(frameImgs);
+        
         // Generate Grad-CAM for videos as well
-        const gradCamImage = await generateGradCamUrl(fileUrl);
-        setGradCamUrl(gradCamImage);
+        if (frameImgs.length > 0) {
+          const gradCamImage = await generateGradCamUrl(frameImgs[0]);
+          setGradCamUrl(gradCamImage);
+        } else {
+          const gradCamImage = await generateGradCamUrl(fileUrl);
+          setGradCamUrl(gradCamImage);
+        }
       } else if (file.type.startsWith('audio/')) {
         analysisResults = await analyzeAudio(fileUrl, shouldBeReal);
         setAudioUrl(fileUrl);
@@ -273,10 +372,25 @@ const IndexContent = () => {
       });
     } finally {
       setIsAnalyzing(false);
+      setPendingFiles([]);
     }
   };
 
   const handleUrlAnalysis = async (url: string) => {
+    if (!url) return;
+    
+    // Check for sensitive content for image and video URLs
+    if (analysisType === 'imageUrl' || analysisType === 'videoUrl') {
+      setShowSensitiveContentDialog(true);
+      setPendingUrl(url);
+      return;
+    }
+    
+    // Process audio URLs directly
+    await processUrl(url);
+  };
+  
+  const processUrl = async (url: string) => {
     if (!url) return;
     
     setIsAnalyzing(true);
@@ -294,12 +408,21 @@ const IndexContent = () => {
         // Generate Grad-CAM visualization for images
         const gradCamImage = await generateGradCamUrl(url);
         setGradCamUrl(gradCamImage);
+        setFrameImages([url]);
         
         analysisResults = await analyzeImage(url, shouldBeReal);
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url, shouldBeReal);
         
-        // Generate Grad-CAM for videos as well
+        // Generate frame images for videos (this is a bit tricky with remote URLs)
+        // For demo purposes, we'll create some fake frames
+        const fakeFrames = [];
+        for (let i = 0; i < 4; i++) {
+          fakeFrames.push(url); // Use the video thumbnail URL as placeholder
+        }
+        setFrameImages(fakeFrames);
+        
+        // Generate Grad-CAM for videos
         const gradCamImage = await generateGradCamUrl(url);
         setGradCamUrl(gradCamImage);
       } else if (analysisType === 'audioUrl') {
@@ -328,7 +451,29 @@ const IndexContent = () => {
       });
     } finally {
       setIsAnalyzing(false);
+      setPendingUrl(null);
     }
+  };
+
+  const handleSensitiveContentConfirm = () => {
+    setShowSensitiveContentDialog(false);
+    
+    if (pendingFiles.length > 0) {
+      processFiles(pendingFiles);
+    } else if (pendingUrl) {
+      processUrl(pendingUrl);
+    }
+  };
+
+  const handleSensitiveContentCancel = () => {
+    setShowSensitiveContentDialog(false);
+    setPendingFiles([]);
+    setPendingUrl(null);
+    
+    toast({
+      title: "Analysis cancelled",
+      description: "You've chosen not to proceed with the analysis.",
+    });
   };
 
   const isAudioAnalysis = results?.metadata.type === 'audio';
@@ -349,68 +494,97 @@ const IndexContent = () => {
           transition={{ duration: 0.5, delay: 0.6 }}
           className="max-w-6xl mx-auto space-y-8"
         >
-          <div className="text-center mb-8 mt-2">
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500">
-              ML-based Deepfake Detection System
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Advanced multi-feature analysis for enhanced data security and privacy
-            </p>
-          </div>
-          
-          <AnalysisOptions onSelect={handleAnalysisTypeSelect} />
-          
-          {analysisType && (
+          {!userChoice ? (
+            <div className="text-center mb-8 mt-2 py-8">
+              <h2 className="text-2xl font-semibold mb-4">Loading user choice...</h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Please select an option from the prompt to continue.
+              </p>
+            </div>
+          ) : (
             <>
-              {analysisType === 'webcam' ? (
-                <div className="space-y-4">
-                  <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-black">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-cover"
+              <AnalysisOptions onSelect={handleAnalysisTypeSelect} />
+              
+              {analysisType && (
+                <>
+                  {analysisType === 'webcam' ? (
+                    <div className="space-y-4">
+                      <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-black">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex justify-center gap-4">
+                        {!webcamStream ? (
+                          <Button onClick={startWebcam} disabled={isAnalyzing}>
+                            <Camera className="w-4 h-4 mr-2" />
+                            Start Webcam
+                          </Button>
+                        ) : (
+                          <Button onClick={handleWebcamCapture} disabled={isAnalyzing}>
+                            Analyze Webcam Feed
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <UploadZone 
+                      analysisType={analysisType} 
+                      onFileSelect={handleFileAnalysis}
+                      onUrlSubmit={handleUrlAnalysis}
+                      isAnalyzing={isAnalyzing}
                     />
-                  </div>
-                  <div className="flex justify-center gap-4">
-                    {!webcamStream ? (
-                      <Button onClick={startWebcam} disabled={isAnalyzing}>
-                        <Camera className="w-4 h-4 mr-2" />
-                        Start Webcam
-                      </Button>
-                    ) : (
-                      <Button onClick={handleWebcamCapture} disabled={isAnalyzing}>
-                        Analyze Webcam Feed
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <UploadZone 
-                  analysisType={analysisType} 
-                  onFileSelect={handleFileAnalysis}
-                  onUrlSubmit={handleUrlAnalysis}
-                  isAnalyzing={isAnalyzing}
-                />
-              )}
+                  )}
 
-              <ExcelDataExport latestEntry={latestEntry} />
-              
-              {results && !isAudioAnalysis && (
-                <AnalysisDisplay 
-                  results={results} 
-                  mediaUrl={mediaUrl}
-                  gradCamUrl={gradCamUrl}
-                />
-              )}
-              
-              {results && isAudioAnalysis && (
-                <AudioAnalysisDisplay results={results} audioUrl={audioUrl || undefined} />
+                  <ExcelDataExport latestEntry={latestEntry} />
+                  
+                  {results && !isAudioAnalysis && (
+                    <AnalysisDisplay 
+                      results={results} 
+                      mediaUrl={mediaUrl}
+                      gradCamUrl={gradCamUrl}
+                      frameImages={frameImages}
+                    />
+                  )}
+                  
+                  {results && isAudioAnalysis && (
+                    <AudioAnalysisDisplay results={results} audioUrl={audioUrl || undefined} />
+                  )}
+                </>
               )}
             </>
           )}
         </motion.div>
       </div>
+
+      {/* Sensitive Content Dialog */}
+      <Dialog open={showSensitiveContentDialog} onOpenChange={setShowSensitiveContentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Sensitive Content Disclaimer
+            </DialogTitle>
+            <DialogDescription>
+              The deepfake detection system will analyze your content to determine if it has been manipulated.
+              By proceeding, you confirm:
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li>You have the right to analyze this content</li>
+                <li>The content doesn't violate privacy or copyright laws</li>
+                <li>You understand that all analysis is performed locally on your device</li>
+                <li>No content will be uploaded to external servers</li>
+              </ul>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleSensitiveContentCancel}>Cancel</Button>
+            <Button onClick={handleSensitiveContentConfirm}>I Understand, Proceed</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
