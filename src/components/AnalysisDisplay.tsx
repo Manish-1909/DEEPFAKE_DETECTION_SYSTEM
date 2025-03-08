@@ -13,6 +13,7 @@ import { toast } from './ui/use-toast';
 import ConfidenceMeter from './ConfidenceMeter';
 import HeatmapVisualization from './HeatmapVisualization';
 import { useTheme } from '@/hooks/useTheme';
+import { v4 as uuidv4 } from 'uuid';
 
 interface AnalysisDisplayProps {
   results: DetectionResult;
@@ -52,12 +53,11 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl, frameImages = [] }: An
   
   const handleDownloadReport = () => {
     try {
-      // Pass frame images to the report generator as well
+      // Pass only three arguments to match the function signature
       generatePDFReport(
         results, 
         mediaUrl || undefined, 
-        gradCamUrl || undefined,
-        frameImages.length > 0 ? frameImages : undefined
+        gradCamUrl || undefined
       );
       
       toast({
@@ -143,7 +143,8 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl, frameImages = [] }: An
       : suspiciousFrames.slice(0, 4).map(frame => ({ 
           url: gradCamUrl || mediaUrl, 
           timestamp: frame.timestamp,
-          confidence: frame.confidence
+          // Add confidence info only if it's from suspiciousFrames
+          ...(frame.confidence !== undefined && { confidence: frame.confidence })
         }));
     
     return (
@@ -169,7 +170,7 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl, frameImages = [] }: An
               </div>
               <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
                 {frame.timestamp ? `${(frame.timestamp / 1000).toFixed(1)}s` : `Frame ${index + 1}`}
-                {frame.confidence && ` - ${frame.confidence.toFixed(0)}%`}
+                {'confidence' in frame && frame.confidence !== undefined ? ` - ${frame.confidence.toFixed(0)}%` : ''}
               </div>
             </div>
           ))}
@@ -671,9 +672,8 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl, frameImages = [] }: An
                     <tr>
                       <td className="px-4 py-3 font-medium text-gray-700 bg-gray-50 dark:text-gray-300 dark:bg-gray-900/50">Metadata</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                        {metadata.source ? `Source: ${metadata.source}` : ''}
-                        {metadata.created ? `, Created: ${metadata.created}` : ''}
-                        {!metadata.source && !metadata.created ? 'No metadata available' : ''}
+                        {/* Checking for optional metadata properties that might not exist */}
+                        {metadata.type === 'image' ? 'Image analysis' : metadata.type === 'video' ? 'Video analysis' : 'Audio analysis'}
                       </td>
                     </tr>
                     {metadata.type === 'video' && (
