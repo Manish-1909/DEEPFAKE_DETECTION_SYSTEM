@@ -79,34 +79,10 @@ const IndexContent = () => {
   const [showSensitiveContentDialog, setShowSensitiveContentDialog] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
-  const [userChoice, setUserChoice] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const isRealResult = (count: number) => count % 2 === 0;
-
-  useEffect(() => {
-    if (!userChoice) {
-      const choice = prompt("Please enter your choice:\n1: Analyze Image\n2: Analyze Video\n3: Analyze Audio\n4: Use Webcam");
-      if (choice) {
-        setUserChoice(choice);
-        
-        // Set analysis type based on user choice
-        switch (choice) {
-          case "1": setAnalysisType("image"); break;
-          case "2": setAnalysisType("video"); break;
-          case "3": setAnalysisType("audio"); break;
-          case "4": setAnalysisType("webcam"); break;
-          default: 
-            toast({
-              title: "Invalid choice",
-              description: "Please refresh and select a valid option (1-4)",
-              variant: "destructive"
-            });
-        }
-      }
-    }
-  }, [userChoice]);
 
   const handleAnalysisTypeSelect = (type: AnalysisType) => {
     setAnalysisType(type);
@@ -494,66 +470,55 @@ const IndexContent = () => {
           transition={{ duration: 0.5, delay: 0.6 }}
           className="max-w-6xl mx-auto space-y-8"
         >
-          {!userChoice ? (
-            <div className="text-center mb-8 mt-2 py-8">
-              <h2 className="text-2xl font-semibold mb-4">Loading user choice...</h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Please select an option from the prompt to continue.
-              </p>
-            </div>
-          ) : (
+          <AnalysisOptions onSelect={handleAnalysisTypeSelect} />
+          
+          {analysisType && (
             <>
-              <AnalysisOptions onSelect={handleAnalysisTypeSelect} />
-              
-              {analysisType && (
-                <>
-                  {analysisType === 'webcam' ? (
-                    <div className="space-y-4">
-                      <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-black">
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          playsInline
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex justify-center gap-4">
-                        {!webcamStream ? (
-                          <Button onClick={startWebcam} disabled={isAnalyzing}>
-                            <Camera className="w-4 h-4 mr-2" />
-                            Start Webcam
-                          </Button>
-                        ) : (
-                          <Button onClick={handleWebcamCapture} disabled={isAnalyzing}>
-                            Analyze Webcam Feed
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <UploadZone 
-                      analysisType={analysisType} 
-                      onFileSelect={handleFileAnalysis}
-                      onUrlSubmit={handleUrlAnalysis}
-                      isAnalyzing={isAnalyzing}
+              {analysisType === 'webcam' ? (
+                <div className="space-y-4">
+                  <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-black">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
                     />
-                  )}
+                  </div>
+                  <div className="flex justify-center gap-4">
+                    {!webcamStream ? (
+                      <Button onClick={startWebcam} disabled={isAnalyzing}>
+                        <Camera className="w-4 h-4 mr-2" />
+                        Start Webcam
+                      </Button>
+                    ) : (
+                      <Button onClick={handleWebcamCapture} disabled={isAnalyzing}>
+                        Analyze Webcam Feed
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <UploadZone 
+                  analysisType={analysisType} 
+                  onFileSelect={handleFileAnalysis}
+                  onUrlSubmit={handleUrlAnalysis}
+                  isAnalyzing={isAnalyzing}
+                />
+              )}
 
-                  <ExcelDataExport latestEntry={latestEntry} />
-                  
-                  {results && !isAudioAnalysis && (
-                    <AnalysisDisplay 
-                      results={results} 
-                      mediaUrl={mediaUrl}
-                      gradCamUrl={gradCamUrl}
-                      frameImages={frameImages}
-                    />
-                  )}
-                  
-                  {results && isAudioAnalysis && (
-                    <AudioAnalysisDisplay results={results} audioUrl={audioUrl || undefined} />
-                  )}
-                </>
+              <ExcelDataExport latestEntry={latestEntry} />
+              
+              {results && !isAudioAnalysis && (
+                <AnalysisDisplay 
+                  results={results} 
+                  mediaUrl={mediaUrl}
+                  gradCamUrl={gradCamUrl}
+                  frameImages={frameImages}
+                />
+              )}
+              
+              {results && isAudioAnalysis && (
+                <AudioAnalysisDisplay results={results} audioUrl={audioUrl || undefined} />
               )}
             </>
           )}
