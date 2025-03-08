@@ -69,7 +69,7 @@ const addImageToPdf = (doc: jsPDF, dataUrl: string, x: number, y: number, width:
   }
 };
 
-export const generatePDFReport = (results: DetectionResult, originalImageUrl?: string, gradCamImageUrl?: string) => {
+export const generatePDFReport = (results: DetectionResult, originalImageUrl?: string, gradCamImageUrl?: string, frameImages?: string[]) => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
 
@@ -98,7 +98,7 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
   
   if (gradCamImageUrl) {
     const imgWidth = pageWidth - 40;
-    const imgHeight = 80;
+    const imgHeight = 60;
     
     addImageToPdf(doc, gradCamImageUrl, 20, yPos, imgWidth, imgHeight, 'Analysis Visualization (GradCAM)');
     yPos += imgHeight + 15;
@@ -155,6 +155,54 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
     },
   });
 
+  // Add frame images if available (for video media)
+  if (results.metadata.type === 'video' && frameImages && frameImages.length > 0) {
+    // Check if we need to add a new page
+    if (yPos > doc.internal.pageSize.height - 120) {
+      doc.addPage();
+      yPos = 20;
+    }
+    
+    yPos += 15;
+    doc.setFontSize(16);
+    doc.text('Video Frame Analysis', 14, yPos);
+    yPos += 10;
+    
+    // Determine how many frames to show (max 4)
+    const framesToShow = Math.min(frameImages.length, 4);
+    
+    if (framesToShow === 1) {
+      // If only one frame, show it larger
+      addImageToPdf(doc, frameImages[0], 20, yPos, pageWidth - 40, 80, 'Video Frame');
+      yPos += 90;
+    } else {
+      // Calculate positions for multiple frames
+      const frameWidth = (pageWidth - 50) / 2;
+      const frameHeight = 40;
+      
+      for (let i = 0; i < framesToShow; i++) {
+        const row = Math.floor(i / 2);
+        const col = i % 2;
+        
+        const xPos = 20 + (col * (frameWidth + 10));
+        const currentYPos = yPos + (row * (frameHeight + 25));
+        
+        addImageToPdf(
+          doc, 
+          frameImages[i], 
+          xPos, 
+          currentYPos, 
+          frameWidth, 
+          frameHeight, 
+          `Frame ${i + 1}`
+        );
+      }
+      
+      // Update yPos after all frames
+      yPos += (Math.ceil(framesToShow / 2) * (frameHeight + 25));
+    }
+  }
+
   // Add confidence range interpretation
   yPos += 10;
   doc.setFontSize(14);
@@ -190,6 +238,12 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
   }
   
   if (highlightedAreas && highlightedAreas.length > 0) {
+    // Check if we need to add a new page
+    if (yPos > doc.internal.pageSize.height - 100) {
+      doc.addPage();
+      yPos = 20;
+    }
+    
     yPos += 10;
     doc.setFontSize(16);
     doc.text('Suspicious Regions', 14, yPos);
@@ -216,6 +270,12 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
 
   // Add suspicious frames for video
   if (results.metadata.type === 'video' && results.analysis.suspiciousFrames && results.analysis.suspiciousFrames.length > 0) {
+    // Check if we need to add a new page
+    if (yPos > doc.internal.pageSize.height - 100) {
+      doc.addPage();
+      yPos = 20;
+    }
+    
     yPos += 10;
     doc.setFontSize(16);
     doc.text('Suspicious Video Frames', 14, yPos);
@@ -240,7 +300,14 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
   }
 
   // Add conclusion section
-  yPos += 15;
+  // Check if we need to add a new page
+  if (yPos > doc.internal.pageSize.height - 100) {
+    doc.addPage();
+    yPos = 20;
+  } else {
+    yPos += 15;
+  }
+  
   doc.setFontSize(16);
   doc.text('Conclusion', 14, yPos);
   yPos += 10;

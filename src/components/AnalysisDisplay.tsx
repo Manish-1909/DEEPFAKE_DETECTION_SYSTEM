@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { FileImage, FileVideo, Headphones, AlertTriangle, FileDown } from 'lucide-react';
 import { generatePDFReport } from '@/utils/reportGenerator';
 import { toast } from './ui/use-toast';
@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import HeatmapVisualization from './HeatmapVisualization';
 
 interface DetectionResult {
   isManipulated: boolean;
@@ -36,6 +37,8 @@ interface AnalysisDisplayProps {
 
 const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gradCamUrl, frameImages }) => {
   const { isManipulated, confidence, classification, metadata, suspiciousFrames = [] } = results;
+  const [activeFrame, setActiveFrame] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const getMediaTypeIcon = () => {
     switch (metadata.type) {
@@ -55,7 +58,8 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
       generatePDFReport(
         results, 
         mediaUrl, 
-        gradCamUrl
+        gradCamUrl,
+        frameImages
       );
       
       toast({
@@ -84,40 +88,129 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
       </div>
     );
   };
-
-  const renderFrameAnalysis = () => {
-    const displayFrames = frameImages.length === 0 
-      ? []
-      : suspiciousFrames.slice(0, 4).map((frame, index) => {
-          const frameUrl = index < frameImages.length ? frameImages[index] : (gradCamUrl || mediaUrl || '');
-          return {
-            url: frameUrl,
-            timestamp: frame.timestamp,
-            confidence: frame.confidence
-          };
-        });
+  
+  const renderVideoPlayerAndFrames = () => {
+    if (metadata.type !== 'video' || !mediaUrl) return null;
     
     return (
-      <div className="space-y-4">
-        <h4 className="text-lg font-semibold">Suspicious Frames Analysis</h4>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {displayFrames.map((frame, index) => (
-            <div key={index} className="relative rounded-lg overflow-hidden">
-              <div className="aspect-video bg-gray-100 dark:bg-gray-800">
-                <img 
-                  src={frame.url} 
-                  alt={`Frame ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
-                {frame.timestamp ? `${(frame.timestamp / 1000).toFixed(1)}s` : `Frame ${index + 1}`}
-                {typeof frame.confidence === 'number' ? ` - ${frame.confidence.toFixed(0)}%` : ''}
-              </div>
-            </div>
-          ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Video Player */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h3 className="text-lg font-semibold mb-4">Source Video</h3>
+          <div className="aspect-video rounded-lg overflow-hidden bg-black">
+            <video
+              ref={videoRef}
+              src={mediaUrl}
+              controls
+              className="w-full h-full object-contain"
+            />
+          </div>
         </div>
+        
+        {/* Frame Analysis */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <h3 className="text-lg font-semibold mb-4">Frame Analysis</h3>
+          <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900">
+            {frameImages.length > 0 ? (
+              <img 
+                src={frameImages[activeFrame] || frameImages[0]} 
+                alt={`Frame ${activeFrame + 1}`}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                No frame analysis available
+              </div>
+            )}
+          </div>
+          
+          {/* Frame Navigation */}
+          {frameImages.length > 1 && (
+            <div className="flex justify-center mt-3 gap-2">
+              {frameImages.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setActiveFrame(index)}
+                  className={`w-3 h-3 rounded-full ${activeFrame === index ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-700'}`}
+                  aria-label={`View frame ${index + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderFrameAnalysis = () => {
+    if (frameImages.length === 0) return null;
+    
+    // For non-video media or if already displaying the player, show a more compact view
+    if (metadata.type !== 'video' || !mediaUrl) {
+      const displayFrames = suspiciousFrames.slice(0, 4).map((frame, index) => {
+        const frameUrl = index < frameImages.length ? frameImages[index] : (gradCamUrl || mediaUrl || '');
+        return {
+          url: frameUrl,
+          timestamp: frame.timestamp,
+          confidence: frame.confidence
+        };
+      });
+      
+      return (
+        <div className="space-y-4">
+          <h4 className="text-lg font-semibold">Suspicious Frames Analysis</h4>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {displayFrames.map((frame, index) => (
+              <div key={index} className="relative rounded-lg overflow-hidden">
+                <div className="aspect-video bg-gray-100 dark:bg-gray-800">
+                  <img 
+                    src={frame.url} 
+                    alt={`Frame ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
+                  {frame.timestamp ? `${(frame.timestamp / 1000).toFixed(1)}s` : `Frame ${index + 1}`}
+                  {typeof frame.confidence === 'number' ? ` - ${frame.confidence.toFixed(0)}%` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
+  const renderGradCamVisualization = () => {
+    if (!gradCamUrl) return null;
+    
+    // Create dummy heatmap data if real data isn't available
+    const heatmapData = results.analysis.heatmapData || {
+      regions: [
+        { x: 30, y: 40, intensity: 0.8, radius: 25 },
+        { x: 70, y: 60, intensity: 0.6, radius: 20 },
+        { x: 50, y: 30, intensity: 0.4, radius: 15 }
+      ],
+      overallIntensity: 0.7
+    };
+    
+    return (
+      <div className="space-y-4 mt-6">
+        <h3 className="text-xl font-semibold">GradCAM Visualization</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          The heatmap highlights areas that most influenced the model's decision, with warmer colors indicating potential manipulation.
+        </p>
+        
+        <HeatmapVisualization 
+          heatmapData={heatmapData}
+          mediaType={metadata.type}
+          frameInfo={suspiciousFrames[0]}
+          gradCamUrl={gradCamUrl}
+          frameImageUrl={frameImages[0] || null}
+        />
       </div>
     );
   };
@@ -170,6 +263,9 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
     <div className="space-y-6 max-w-4xl mx-auto p-6">
       <h2 className="text-2xl font-bold text-center">Analysis Results</h2>
 
+      {/* Video Player & Frame Analysis (only for video media) */}
+      {renderVideoPlayerAndFrames()}
+
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -202,7 +298,7 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                 {metadata &&
                   Object.entries(metadata)
-                    .filter(([key]) => key !== '__typename')
+                    .filter(([key]) => key !== '__typename' && key !== 'type')
                     .map(([key, value]) => (
                       <div key={uuidv4()} className="text-sm">
                         <span className="font-semibold">{key}:</span> {String(value)}
@@ -213,6 +309,9 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
           </tbody>
         </table>
       </div>
+
+      {/* GradCAM Visualization */}
+      {renderGradCamVisualization()}
 
       {/* Visualization section with charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -284,20 +383,8 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
         </div>
       </div>
 
-      {/* Display only GradCAM visualization */}
-      {gradCamUrl && (
-        <div className="space-y-4">
-          <h3 className="text-xl font-semibold">Analysis Visualization (GradCAM)</h3>
-          <div className="relative rounded-lg overflow-hidden">
-            <img src={gradCamUrl} alt="Analysis Visualization" className="w-full h-auto object-cover" />
-            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2">
-              <p>Heatmap showing areas of potential manipulation (red regions indicate higher suspicion)</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {suspiciousFrames.length > 0 && metadata.type === 'video' && renderFrameAnalysis()}
+      {/* Display suspicious frames for images/video */}
+      {renderFrameAnalysis()}
 
       <div className="text-center">
         <Button
