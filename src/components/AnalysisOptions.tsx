@@ -48,9 +48,9 @@ const AnalysisOptions = ({ onSelect }: AnalysisOptionsProps) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="text-muted-foreground max-w-2xl mx-auto"
+          className="text-muted-foreground max-w-2xl mx-auto text-lg"
         >
-          AI BASED DEEPFAKE DETECTION SYSTEM WITH MULTIPLE FEATURES
+          ML BASED DEEPFAKE DETECTION SYSTEM WITH MULTIPLE FEATURES
         </motion.p>
       </div>
       

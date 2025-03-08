@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { DetectionResult } from '@/services/detectionService';
 import { generatePDFReport } from '@/utils/reportGenerator';
 import { toast } from './ui/use-toast';
@@ -25,18 +25,22 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
   
   const suspiciousFrames = analysis.suspiciousFrames || [];
   
+  // Enhanced color scheme for pie chart
+  const COLORS = ['#FF4560', '#00E396'];
+  
+  // Different colors for each bar in the bar chart
+  const BAR_COLORS = ['#8884d8', '#FF9F40', '#4BC0C0'];
+  
   const pieChartData = [
     { name: 'Manipulated', value: confidence },
     { name: 'Authentic', value: 100 - confidence },
   ];
   
   const barChartData = [
-    { name: 'Face Consistency', value: analysis.faceConsistency },
-    { name: 'Lighting Consistency', value: analysis.lightingConsistency },
-    { name: 'Artifacts Score', value: analysis.artifactsScore },
+    { name: 'Face Consistency', value: analysis.faceConsistency, fill: BAR_COLORS[0] },
+    { name: 'Lighting Consistency', value: analysis.lightingConsistency, fill: BAR_COLORS[1] },
+    { name: 'Artifacts Score', value: analysis.artifactsScore, fill: BAR_COLORS[2] },
   ];
-  
-  const COLORS = ['#FF4560', '#00C292'];
   
   const handleDownloadReport = () => {
     try {
@@ -84,6 +88,32 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
       case 'high': return 'High Risk';
       default: return risk;
     }
+  };
+
+  // Custom tooltip for bar chart to make text more visible
+  const CustomBarTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-2 border rounded shadow text-sm">
+          <p className="font-semibold">{payload[0].name}</p>
+          <p className="text-primary">{`${payload[0].value.toFixed(1)}%`}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Custom tooltip for pie chart
+  const CustomPieTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-2 border rounded shadow text-sm">
+          <p className="font-semibold">{payload[0].name}</p>
+          <p style={{ color: payload[0].payload.fill }}>{`${payload[0].value.toFixed(1)}%`}</p>
+        </div>
+      );
+    }
+    return null;
   };
   
   return (
@@ -219,7 +249,9 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                       {analysis.faceConsistency.toFixed(1)}%
                     </Badge>
                   </div>
-                  <Progress value={analysis.faceConsistency} className="h-1.5" />
+                  <Progress value={analysis.faceConsistency} className="h-1.5" style={{ backgroundColor: 'rgba(136, 132, 216, 0.2)' }}>
+                    <div className="h-full rounded-full" style={{ backgroundColor: BAR_COLORS[0] }} />
+                  </Progress>
                   
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Lighting Consistency</span>
@@ -227,7 +259,9 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                       {analysis.lightingConsistency.toFixed(1)}%
                     </Badge>
                   </div>
-                  <Progress value={analysis.lightingConsistency} className="h-1.5" />
+                  <Progress value={analysis.lightingConsistency} className="h-1.5" style={{ backgroundColor: 'rgba(255, 159, 64, 0.2)' }}>
+                    <div className="h-full rounded-full" style={{ backgroundColor: BAR_COLORS[1] }} />
+                  </Progress>
                   
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Artifacts Score</span>
@@ -235,13 +269,15 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                       {analysis.artifactsScore.toFixed(1)}%
                     </Badge>
                   </div>
-                  <Progress value={analysis.artifactsScore} className="h-1.5" />
+                  <Progress value={analysis.artifactsScore} className="h-1.5" style={{ backgroundColor: 'rgba(75, 192, 192, 0.2)' }}>
+                    <div className="h-full rounded-full" style={{ backgroundColor: BAR_COLORS[2] }} />
+                  </Progress>
                 </div>
               </div>
               
               <div className="space-y-4">
                 <h4 className="font-medium text-sm text-gray-600">Confidence Distribution</h4>
-                <div className="h-64 w-full">
+                <div className="h-64 w-full bg-white/5 p-4 rounded-lg">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -258,7 +294,8 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => [`${value.toFixed(1)}%`, '']} />
+                      <Tooltip content={<CustomPieTooltip />} />
+                      <Legend />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -267,14 +304,32 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
             
             <div className="space-y-4">
               <h4 className="font-medium text-sm text-gray-600">Metric Comparison</h4>
-              <div className="h-64 w-full">
+              <div className="h-64 w-full bg-white/5 p-4 rounded-lg">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={barChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip formatter={(value: number) => [`${value.toFixed(1)}%`, '']} />
-                    <Bar dataKey="value" fill="#0066FF" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#888', fontSize: 12 }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                    />
+                    <YAxis 
+                      domain={[0, 100]} 
+                      tick={{ fill: '#888', fontSize: 12 }}
+                      axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip content={<CustomBarTooltip />} />
+                    <Legend />
+                    {barChartData.map((entry, index) => (
+                      <Bar 
+                        key={`bar-${index}`}
+                        dataKey="value" 
+                        name={entry.name}
+                        fill={entry.fill} 
+                        background={{ fill: 'rgba(255,255,255,0.05)' }}
+                      />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -286,7 +341,7 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
               <h4 className="font-medium text-sm text-gray-600">Potential Manipulation Regions</h4>
               <Button variant="ghost" size="sm" onClick={toggleHeatmap} className="gap-2">
                 {showHeatmap ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                {showHeatmap ? 'Hide Heatmap' : 'Show Heatmap'}
+                {showHeatmap ? 'Hide Visualizations' : 'Show Visualizations'}
               </Button>
             </div>
             
@@ -302,7 +357,8 @@ const AnalysisDisplay = ({ results, mediaUrl, gradCamUrl }: AnalysisDisplayProps
                     <div className="absolute inset-0">
                       <HeatmapVisualization 
                         heatmapData={analysis.heatmapData} 
-                        mediaType={metadata.type} 
+                        mediaType={metadata.type}
+                        gradCamUrl={gradCamUrl || undefined}
                       />
                     </div>
                   )}

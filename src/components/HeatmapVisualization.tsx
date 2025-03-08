@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ZoomIn, Search } from 'lucide-react';
+import { ZoomIn, Search, Download } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface HeatmapRegion {
@@ -22,11 +22,13 @@ interface HeatmapVisualizationProps {
   frameInfo?: {
     timestamp: number;
   };
+  gradCamUrl?: string | null;
 }
 
-const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo }: HeatmapVisualizationProps) => {
+const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo, gradCamUrl }: HeatmapVisualizationProps) => {
   const [hoveredRegion, setHoveredRegion] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [showGradCam, setShowGradCam] = useState(true);
   
   const HEATMAP_COLORS = [
     'rgba(0, 255, 0, 0.1)',   // Lowest intensity (green)
@@ -52,16 +54,34 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo }: HeatmapVisu
     return HEATMAP_COLORS[2];
   };
   
+  const toggleGradCam = () => {
+    setShowGradCam(!showGradCam);
+  };
+  
   return (
     <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300">
-      <div 
-        className="w-full h-full flex items-center justify-center text-gray-500"
-        style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.3s ease' }}
-      >
-        {mediaType === 'image' ? 'Image Analysis' : `Frame at ${(frameInfo?.timestamp || 0) / 1000}s`}
-      </div>
+      {/* GradCAM View */}
+      {gradCamUrl && showGradCam ? (
+        <div 
+          className="w-full h-full"
+          style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.3s ease' }}
+        >
+          <img 
+            src={gradCamUrl} 
+            alt="Grad-CAM visualization" 
+            className="w-full h-full object-contain"
+          />
+        </div>
+      ) : (
+        <div 
+          className="w-full h-full flex items-center justify-center text-gray-500"
+          style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.3s ease' }}
+        >
+          {mediaType === 'image' ? 'Image Analysis' : `Frame at ${(frameInfo?.timestamp || 0) / 1000}s`}
+        </div>
+      )}
       
-      {/* Zoom controls */}
+      {/* Zoom and visualization controls */}
       <div className="absolute top-2 right-2 flex gap-2">
         <Button 
           variant="outline" 
@@ -81,10 +101,20 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo }: HeatmapVisu
         >
           <Search size={16} />
         </Button>
+        {gradCamUrl && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleGradCam}
+            className="bg-white/80 hover:bg-white text-xs"
+          >
+            {showGradCam ? "Hide Grad-CAM" : "Show Grad-CAM"}
+          </Button>
+        )}
       </div>
       
       {/* Render each heatmap region with interactive hover effect */}
-      {heatmapData.regions.map((region, index) => (
+      {!showGradCam && heatmapData.regions.map((region, index) => (
         <motion.div
           key={index}
           className="absolute rounded-full cursor-pointer"
@@ -113,16 +143,25 @@ const HeatmapVisualization = ({ heatmapData, mediaType, frameInfo }: HeatmapVisu
       )}
       
       {/* Overall heatmap gradient overlay */}
-      <div 
-        className="absolute inset-0 pointer-events-none" 
-        style={{
-          background: `linear-gradient(135deg, 
-            ${getIntensityColor(heatmapData.overallIntensity * 0.7)} 0%, 
-            transparent 80%)`,
-          opacity: heatmapData.overallIntensity * 0.4,
-          mixBlendMode: 'overlay'
-        }}
-      />
+      {!showGradCam && (
+        <div 
+          className="absolute inset-0 pointer-events-none" 
+          style={{
+            background: `linear-gradient(135deg, 
+              ${getIntensityColor(heatmapData.overallIntensity * 0.7)} 0%, 
+              transparent 80%)`,
+            opacity: heatmapData.overallIntensity * 0.4,
+            mixBlendMode: 'overlay'
+          }}
+        />
+      )}
+      
+      {/* GradCam explanation */}
+      {gradCamUrl && showGradCam && (
+        <div className="absolute bottom-2 left-2 bg-black/80 text-white text-xs p-2 rounded-md max-w-xs">
+          Grad-CAM highlights regions that most influenced the model's decision with warmer colors showing manipulated areas.
+        </div>
+      )}
     </div>
   );
 };

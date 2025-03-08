@@ -5,6 +5,7 @@ import UploadZone from "@/components/UploadZone";
 import AnalysisDisplay from "@/components/AnalysisDisplay";
 import AudioAnalysisDisplay from "@/components/AudioAnalysisDisplay";
 import AnalysisOptions, { AnalysisType } from "@/components/AnalysisOptions";
+import ExcelDataExport, { AnalysisEntry } from "@/components/ExcelDataExport";
 import { motion } from "framer-motion";
 import { toast } from "@/components/ui/use-toast";
 import { 
@@ -16,11 +17,20 @@ import {
 } from "@/services/detectionService";
 import { Button } from "@/components/ui/button";
 import { Camera } from "lucide-react";
+import { v4 as uuidv4 } from 'uuid';
 
 // Add polyfill for ImageCapture if needed
+// Use proper type declarations
+interface ImageCapture {
+  track: MediaStreamTrack;
+  grabFrame(): Promise<ImageBitmap>;
+}
+
 declare global {
   interface Window {
-    ImageCapture: any;
+    ImageCapture?: {
+      new(track: MediaStreamTrack): ImageCapture;
+    };
   }
 }
 
@@ -33,7 +43,7 @@ if (!('ImageCapture' in window)) {
       this.track = track;
     }
     
-    async grabFrame() {
+    async grabFrame(): Promise<ImageBitmap> {
       const videoEl = document.createElement('video');
       videoEl.srcObject = new MediaStream([this.track]);
       videoEl.play();
@@ -45,7 +55,6 @@ if (!('ImageCapture' in window)) {
           canvas.height = videoEl.videoHeight;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(videoEl, 0, 0);
-          // @ts-ignore - createImageBitmap might not be supported in all browsers
           createImageBitmap(canvas).then(resolve);
           videoEl.pause();
         };
@@ -63,6 +72,7 @@ const Index = () => {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [gradCamUrl, setGradCamUrl] = useState<string | null>(null);
   const [analysisCount, setAnalysisCount] = useState(0);
+  const [latestEntry, setLatestEntry] = useState<AnalysisEntry | undefined>();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const isRealResult = (count: number) => count % 2 === 0;
@@ -143,6 +153,17 @@ const Index = () => {
       img.src = originalUrl;
     });
   };
+  
+  const createAnalysisEntry = (result: DetectionResult): AnalysisEntry => {
+    return {
+      id: uuidv4(),
+      timestamp: new Date().toISOString(),
+      mediaType: result.metadata.type,
+      confidence: result.confidence,
+      isManipulated: result.isManipulated,
+      classification: result.classification
+    };
+  };
 
   const handleWebcamCapture = async () => {
     if (!webcamStream) return;
@@ -157,7 +178,7 @@ const Index = () => {
       // Capture a frame from the webcam
       const track = webcamStream.getVideoTracks()[0];
       // Use our polyfill or the native ImageCapture
-      const imageCapture = new window.ImageCapture(track);
+      const imageCapture = new window.ImageCapture!(track);
       const bitmap = await imageCapture.grabFrame();
       
       // Convert to blob URL
@@ -176,6 +197,11 @@ const Index = () => {
       
       const analysisResults = await startWebcamAnalysis(webcamStream, shouldBeReal);
       setResults(analysisResults);
+      
+      // Create and store analysis entry
+      const entry = createAnalysisEntry(analysisResults);
+      setLatestEntry(entry);
+      
       toast({
         title: "Analysis complete",
         description: `Webcam capture analyzed and determined to be ${shouldBeReal ? 'authentic' : 'a deepfake'}.`,
@@ -223,6 +249,11 @@ const Index = () => {
       }
       
       setResults(analysisResults);
+      
+      // Create and store analysis entry
+      const entry = createAnalysisEntry(analysisResults);
+      setLatestEntry(entry);
+      
       toast({
         title: "Analysis complete",
         description: `Your media has been analyzed and determined to be ${shouldBeReal ? 'authentic' : 'a deepfake'}.`,
@@ -269,6 +300,11 @@ const Index = () => {
       }
       
       setResults(analysisResults);
+      
+      // Create and store analysis entry
+      const entry = createAnalysisEntry(analysisResults);
+      setLatestEntry(entry);
+      
       toast({
         title: "Analysis complete",
         description: `URL has been analyzed and determined to be ${shouldBeReal ? 'authentic' : 'a deepfake'}.`,
@@ -298,6 +334,7 @@ const Index = () => {
           className="max-w-6xl mx-auto space-y-8"
         >
           <AnalysisOptions onSelect={handleAnalysisTypeSelect} />
+          
           {analysisType && (
             <>
               {analysisType === 'webcam' ? (
@@ -331,6 +368,8 @@ const Index = () => {
                   isAnalyzing={isAnalyzing}
                 />
               )}
+
+              <ExcelDataExport latestEntry={latestEntry} />
               
               {results && !isAudioAnalysis && (
                 <AnalysisDisplay 

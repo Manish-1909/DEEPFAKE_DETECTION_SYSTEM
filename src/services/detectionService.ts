@@ -3,35 +3,40 @@ import { pipeline } from "@huggingface/transformers";
 export interface DetectionResult {
   confidence: number;
   isManipulated: boolean;
-  classification: 'highly_authentic' | 'likely_authentic' | 'possibly_manipulated' | 'highly_manipulated';
-  riskLevel: 'low' | 'medium' | 'high';
+  classification: string;
+  riskLevel: string;
   analysis: {
-    framewiseConfidence?: {
-      timestamp: number;
-      confidence: number;
-    }[];
-    suspiciousFrames?: {
-      timestamp: number;
-      confidence: number;
-    }[];
+    framewiseConfidence?: { timestamp: number; confidence: number }[];
+    suspiciousFrames?: { timestamp: number; confidence: number }[];
     faceConsistency: number;
     lightingConsistency: number;
     artifactsScore: number;
     heatmapData?: {
-      regions: Array<{
+      regions: {
         x: number;
         y: number;
         intensity: number;
         radius: number;
-      }>;
+      }[];
       overallIntensity: number;
+    };
+    audioAnalysis?: {
+      pitchConsistency: number;
+      frequencyDistortion: number;
+      artificialPatterns: number;
+      suspiciousSegments: {
+        timestamp: number;
+        duration: number;
+        confidence: number;
+        type: string;
+      }[];
     };
   };
   metadata: {
     type: 'image' | 'video' | 'audio';
     resolution?: string;
-    frameCount?: number;
     duration?: number;
+    frameCount?: number;
   };
 }
 
