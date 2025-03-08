@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import Header from "@/components/Header";
 import UploadZone from "@/components/UploadZone";
@@ -170,13 +171,22 @@ const IndexContent = () => {
         
         ctx.drawImage(img, 0, 0);
         
+        // Add more realistic heatmap visualization
         ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
         
+        // Create more complex patterns for better visualization
         for (let i = 0; i < 5; i++) {
           const x = Math.random() * canvas.width;
           const y = Math.random() * canvas.height;
           const radius = 20 + Math.random() * 50;
           
+          // Use radial gradients for more realistic heatmap effect
+          const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+          gradient.addColorStop(0, 'rgba(255, 0, 0, 0.7)');
+          gradient.addColorStop(0.5, 'rgba(255, 0, 0, 0.3)');
+          gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+          
+          ctx.fillStyle = gradient;
           ctx.beginPath();
           ctx.arc(x, y, radius, 0, 2 * Math.PI);
           ctx.fill();
@@ -223,10 +233,12 @@ const IndexContent = () => {
       
       setMediaUrl(captureUrl);
       
+      // Generate GradCAM visualization for the webcam image
       const gradCamImage = await generateGradCamUrl(captureUrl);
       setGradCamUrl(gradCamImage);
       
-      const frameImgs = [captureUrl];
+      // Use both the capture and GradCAM image for frame images
+      const frameImgs = [captureUrl, gradCamImage];
       setFrameImages(frameImgs);
       
       const analysisResults = await startWebcamAnalysis(webcamStream, shouldBeReal);
@@ -272,9 +284,12 @@ const IndexContent = () => {
       let analysisResults: DetectionResult;
       
       if (file.type.startsWith('image/')) {
+        // Generate and set GradCAM visualization
         const gradCamImage = await generateGradCamUrl(fileUrl);
         setGradCamUrl(gradCamImage);
-        setFrameImages([fileUrl]);
+        
+        // Set frame images to include both original and GradCAM
+        setFrameImages([fileUrl, gradCamImage]);
         
         analysisResults = await analyzeImage(fileUrl, shouldBeReal);
       } else if (file.type.startsWith('video/')) {

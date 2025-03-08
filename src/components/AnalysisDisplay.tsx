@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { FileImage, FileVideo, Headphones, AlertTriangle, FileDown } from 'lucide-react';
-import { generatePDFReport } from '@/services/reportService';
+import { generatePDFReport } from '@/utils/reportGenerator';
 import { toast } from './ui/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts';
@@ -214,7 +214,7 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
         </table>
       </div>
 
-      {/* New visualization section with charts */}
+      {/* Visualization section with charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Detection Confidence</h3>

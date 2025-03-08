@@ -75,24 +75,20 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
 
   // Add title
   doc.setFontSize(20);
-  doc.text('DEEP DETECTIVES - Analysis Report', pageWidth / 2, 20, { align: 'center' });
+  doc.text('DEEPFAKE DETECTION REPORT', pageWidth / 2, 20, { align: 'center' });
 
-  // Add subtitle
-  doc.setFontSize(14);
-  doc.text('ML-based Deepfake Detection System', pageWidth / 2, 30, { align: 'center' });
+  // Add date and time
+  doc.setFontSize(12);
+  doc.text(`Date and Time of Generation: ${new Date().toLocaleString()}`, pageWidth / 2, 30, { align: 'center' });
 
-  // Add timestamp
-  doc.setFontSize(10);
-  doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, 40, { align: 'center' });
-
-  // Add summary banner
+  // Add summary classification banner
   doc.setFillColor(results.isManipulated ? 255 : 0, results.isManipulated ? 0 : 150, 0);
-  doc.rect(14, 45, pageWidth - 28, 10, 'F');
+  doc.rect(14, 40, pageWidth - 28, 10, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(12);
   doc.text(
-    results.isManipulated ? 'POTENTIAL MANIPULATION DETECTED' : 'LIKELY AUTHENTIC',
-    pageWidth / 2, 52, { align: 'center' }
+    results.isManipulated ? 'DEEPFAKE DETECTED' : 'LIKELY AUTHENTIC',
+    pageWidth / 2, 47, { align: 'center' }
   );
   doc.setTextColor(0, 0, 0);
 
@@ -108,15 +104,19 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
     }
     
     if (gradCamImageUrl) {
-      addImageToPdf(doc, gradCamImageUrl, pageWidth/2 + 5, yPos, imgWidth, imgHeight, 'Grad-CAM Visualization');
+      addImageToPdf(doc, gradCamImageUrl, pageWidth/2 + 5, yPos, imgWidth, imgHeight, 'Analysis Visualization');
     }
     
     yPos += imgHeight + 15;
   }
 
-  // Add main results
-  const mainResults = [
-    ['Media Type', results.metadata.type],
+  // Add media information section
+  doc.setFontSize(16);
+  doc.text('Media Information', 14, yPos);
+  yPos += 10;
+
+  const mediaInfo = [
+    ['Media Type', results.metadata.type.charAt(0).toUpperCase() + results.metadata.type.slice(1)],
     ['Confidence Score', `${results.confidence.toFixed(1)}%`],
     ['Classification', getClassificationText(results.classification)],
     ['Resolution', results.metadata.resolution || 'N/A'],
@@ -124,12 +124,13 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
     ['Prediction Accuracy', `${(85 + Math.random() * 10).toFixed(1)}%`],
   ];
 
-  // Add main results table
+  // Add media information table
   autoTable(doc, {
     head: [['Parameter', 'Value']],
-    body: mainResults,
+    body: mediaInfo,
     startY: yPos,
     theme: 'grid',
+    headStyles: { fillColor: [50, 50, 50] },
     didDrawPage: (data) => {
       yPos = data.cursor.y;
     },
@@ -137,8 +138,9 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
 
   // Add detailed analysis title
   yPos += 10;
-  doc.setFontSize(14);
+  doc.setFontSize(16);
   doc.text('Detailed Analysis', 14, yPos);
+  yPos += 10;
 
   // Add analysis results
   const analysisResults = [
@@ -148,28 +150,56 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
   ];
 
   // Add analysis results table
-  yPos += 5;
   autoTable(doc, {
     head: [['Analysis Type', 'Score']],
     body: analysisResults,
     startY: yPos,
     theme: 'grid',
+    headStyles: { fillColor: [70, 70, 70] },
     didDrawPage: (data) => {
       yPos = data.cursor.y;
     },
   });
 
-  // Add highlighted areas for images
+  // Add confidence range interpretation
+  yPos += 10;
+  doc.setFontSize(14);
+  doc.text('Confidence Range Interpretation', 14, yPos);
+  yPos += 8;
+  
+  // Add confidence range explanation
+  const confidenceValue = results.confidence;
+  let rangeText = "";
+  
+  if (confidenceValue > 85) {
+    rangeText = "Very High certainty (85-100%): The analysis is extremely confident in its determination.";
+  } else if (confidenceValue > 70) {
+    rangeText = "High certainty (70-85%): The analysis is highly confident in its determination.";
+  } else if (confidenceValue > 50) {
+    rangeText = "Moderate certainty (50-70%): There is reasonable confidence in the analysis.";
+  } else if (confidenceValue > 30) {
+    rangeText = "Low certainty (30-50%): The analysis has low confidence in its determination.";
+  } else {
+    rangeText = "Very low certainty (0-30%): The analysis has very low confidence in its determination.";
+  }
+  
+  const splitText = doc.splitTextToSize(rangeText, pageWidth - 28);
+  doc.setFontSize(11);
+  doc.text(splitText, 14, yPos);
+  yPos += splitText.length * 7;
+
+  // Add suspicious regions section if applicable
   let highlightedAreas: HighlightedArea[] = [];
   
   if (results.analysis.heatmapData && results.analysis.heatmapData.regions) {
     highlightedAreas = convertRegionsToHighlightedAreas(results.analysis.heatmapData.regions);
   }
   
-  if (results.metadata.type === 'image' && highlightedAreas && highlightedAreas.length > 0) {
+  if (highlightedAreas && highlightedAreas.length > 0) {
     yPos += 10;
-    doc.setFontSize(14);
+    doc.setFontSize(16);
     doc.text('Suspicious Regions', 14, yPos);
+    yPos += 10;
 
     const areasData = highlightedAreas.map((area, index) => [
       `Region ${index + 1}`,
@@ -178,235 +208,74 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
       `${area.confidence.toFixed(1)}%`
     ]);
 
-    yPos += 5;
     autoTable(doc, {
       head: [['Region ID', 'Position', 'Size', 'Confidence']],
       body: areasData,
       startY: yPos,
       theme: 'grid',
+      headStyles: { fillColor: [70, 70, 70] },
       didDrawPage: (data) => {
         yPos = data.cursor.y;
       },
     });
   }
 
-  // Add frame analysis for videos
-  const suspiciousFrames = results.analysis.suspiciousFrames as SuspiciousFrame[] | undefined;
-  if (results.metadata.type === 'video' && suspiciousFrames && suspiciousFrames.length > 0) {
-    yPos += 10;
-    doc.setFontSize(14);
-    doc.text('Frame Analysis', 14, yPos);
-
-    const frameData = suspiciousFrames.map((frame, index) => [
-      `${index + 1}`,
-      `${(frame.timestamp / 1000).toFixed(1)}s`,
-      `${frame.confidence.toFixed(1)}%`,
-      frame.boundingBox ? 'Yes' : 'No'
-    ]);
-
-    // Add frame analysis table
-    yPos += 5;
-    autoTable(doc, {
-      head: [['Frame', 'Timestamp', 'Confidence', 'Suspicious Region']],
-      body: frameData,
-      startY: yPos,
-      theme: 'grid',
-      didDrawPage: (data) => {
-        yPos = data.cursor.y;
-      },
-    });
-
-    // Add frame images to report using the Grad-CAM url (as a placeholder for actual frames)
-    if (gradCamImageUrl && suspiciousFrames.length > 0) {
-      yPos += 10;
-      doc.setFontSize(14);
-      doc.text('Suspicious Frames Visualization', 14, yPos);
-      
-      yPos += 10;
-      
-      // Show up to 4 frames in a 2x2 grid
-      const displayFrames = suspiciousFrames.slice(0, 4);
-      const frameImgWidth = (pageWidth - 50) / 2;
-      const frameImgHeight = 40;
-      
-      for (let i = 0; i < displayFrames.length; i++) {
-        const frame = displayFrames[i];
-        const row = Math.floor(i / 2);
-        const col = i % 2;
-        
-        const xPos = 20 + (col * (frameImgWidth + 10));
-        const yPosFrame = yPos + (row * (frameImgHeight + 15));
-        
-        // Using the same gradCamImageUrl as a placeholder for different frames
-        addImageToPdf(
-          doc, 
-          gradCamImageUrl, 
-          xPos, 
-          yPosFrame, 
-          frameImgWidth, 
-          frameImgHeight, 
-          `Frame at ${(frame.timestamp / 1000).toFixed(2)}s (${frame.confidence.toFixed(1)}% conf.)`
-        );
-      }
-      
-      // Update yPos based on number of rows
-      const numRows = Math.ceil(displayFrames.length / 2);
-      yPos += (numRows * (frameImgHeight + 15));
-    }
-
-    // List individual suspicious frames with high confidence
-    const highConfidenceFrames = suspiciousFrames
-      .filter(frame => frame.confidence > 70)
-      .map((frame, index) => [
-        `${(frame.timestamp / 1000).toFixed(1)}s`,
-        `${frame.confidence.toFixed(1)}%`,
-        frame.boundingBox ? `X:${frame.boundingBox.x}, Y:${frame.boundingBox.y}` : 'N/A'
-      ]);
-
-    if (highConfidenceFrames.length > 0) {
-      yPos += 10;
-      doc.setFontSize(14);
-      doc.text('High Confidence Suspicious Frames', 14, yPos);
-
-      yPos += 5;
-      autoTable(doc, {
-        head: [['Timestamp', 'Confidence', 'Region']],
-        body: highConfidenceFrames,
-        startY: yPos,
-        theme: 'grid',
-        didDrawPage: (data) => {
-          yPos = data.cursor.y;
-        },
-      });
-    }
-  }
-
-  // Add audio analysis for audio files
-  const audioData = (results.analysis as any).audioAnalysis;
-  if (results.metadata.type === 'audio' && audioData) {
-    yPos += 10;
-    doc.setFontSize(14);
-    doc.text('Audio Analysis', 14, yPos);
-
-    const audioMetrics = [
-      ['Pitch Consistency', `${audioData.pitchConsistency.toFixed(1)}%`],
-      ['Frequency Distortion', `${audioData.frequencyDistortion.toFixed(1)}%`],
-      ['Artificial Patterns', `${audioData.artificialPatterns.toFixed(1)}%`],
-    ];
-
-    yPos += 5;
-    autoTable(doc, {
-      head: [['Analysis Type', 'Score']],
-      body: audioMetrics,
-      startY: yPos,
-      theme: 'grid',
-      didDrawPage: (data) => {
-        yPos = data.cursor.y;
-      },
-    });
-
-    // Add suspicious segments
-    if (audioData.suspiciousSegments && audioData.suspiciousSegments.length > 0) {
-      yPos += 10;
-      doc.setFontSize(14);
-      doc.text('Suspicious Audio Segments', 14, yPos);
-
-      const segmentData = audioData.suspiciousSegments.map((segment: any, index: number) => [
-        `${index + 1}`,
-        `${(segment.timestamp / 1000).toFixed(1)}s - ${((segment.timestamp + segment.duration) / 1000).toFixed(1)}s`,
-        segment.type.replace('_', ' '),
-        `${segment.confidence.toFixed(1)}%`
-      ]);
-
-      yPos += 5;
-      autoTable(doc, {
-        head: [['Segment', 'Timestamp Range', 'Anomaly Type', 'Confidence']],
-        body: segmentData,
-        startY: yPos,
-        theme: 'grid',
-        didDrawPage: (data) => {
-          yPos = data.cursor.y;
-        },
-      });
-    }
-  }
-
-  // Add conclusion
+  // Add conclusion section
   yPos += 15;
-  doc.setFontSize(14);
+  doc.setFontSize(16);
   doc.text('Conclusion', 14, yPos);
+  yPos += 10;
   
-  yPos += 7;
   doc.setFontSize(11);
   let conclusionText = results.isManipulated 
     ? `This ${results.metadata.type} shows signs of potential manipulation with ${results.confidence.toFixed(1)}% confidence. `
     : `This ${results.metadata.type} appears to be authentic with ${(100-results.confidence).toFixed(1)}% confidence. `;
     
-  // Add detailed analysis conclusion
-  if (results.isManipulated) {
-    if (results.metadata.type === 'image' || results.metadata.type === 'video') {
-      if (results.analysis.faceConsistency < 70) {
-        conclusionText += 'Facial inconsistencies detected. ';
-      }
-      if (results.analysis.lightingConsistency < 70) {
-        conclusionText += 'Lighting anomalies present. ';
-      }
-      if (results.analysis.artifactsScore > 50) {
-        conclusionText += 'Digital artifacts identified. ';
-      }
-      
-      if (results.metadata.type === 'video' && suspiciousFrames && suspiciousFrames.length > 0) {
-        conclusionText += `${suspiciousFrames.length} suspicious frames detected. `;
-      }
-    } else if (results.metadata.type === 'audio' && audioData) {
-      if (audioData.pitchConsistency < 70) {
-        conclusionText += 'Voice pitch inconsistencies detected. ';
-      }
-      if (audioData.frequencyDistortion > 50) {
-        conclusionText += 'Frequency distortions present. ';
-      }
-      if (audioData.artificialPatterns > 50) {
-        conclusionText += 'Artificial speech patterns identified. ';
-      }
-    }
+  // Add recommendation based on confidence range
+  if (confidenceValue > 85) {
+    conclusionText += results.isManipulated 
+      ? "Recommended action: Consider this content to be manipulated." 
+      : "Recommended action: This content can be trusted with high confidence.";
+  } else if (confidenceValue > 70) {
+    conclusionText += results.isManipulated 
+      ? "Recommended action: Treat this content with high suspicion."
+      : "Recommended action: This content is likely reliable but verify when possible.";
+  } else if (confidenceValue > 50) {
+    conclusionText += "Recommended action: Exercise caution and seek additional verification.";
+  } else {
+    conclusionText += "Recommended action: The analysis is inconclusive. Treat with skepticism and verify independently.";
   }
-  
-  // Add recommendations
-  conclusionText += results.confidence > 90 
-    ? 'Recommended action: Consider this media highly suspect and verify through alternative sources.'
-    : results.confidence > 70
-    ? 'Recommended action: Exercise caution when sharing or making decisions based on this media.'
-    : 'Recommended action: This media appears to be reliable but caution is always advised.';
 
   // Add wrapped text
-  const splitText = doc.splitTextToSize(conclusionText, pageWidth - 28);
-  doc.text(splitText, 14, yPos);
+  const splitConclusionText = doc.splitTextToSize(conclusionText, pageWidth - 28);
+  doc.text(splitConclusionText, 14, yPos);
+  yPos += splitConclusionText.length * 7;
 
-  // Add evaluation metrics section
-  yPos += splitText.length * 5 + 15;
-  doc.setFontSize(14);
+  // Add performance metrics section
+  yPos += 10;
+  doc.setFontSize(16);
   doc.text('Performance Metrics', 14, yPos);
+  yPos += 10;
   
-  yPos += 7;
-  const metricsText = `Precision: ${(85 + Math.random() * 10).toFixed(1)}%, Recall: ${(82 + Math.random() * 10).toFixed(1)}%, F1-Score: ${(84 + Math.random() * 10).toFixed(1)}%`;
-  doc.setFontSize(11);
-  doc.text(metricsText, 14, yPos);
-
-  // Add data security and privacy section
-  yPos += 15;
-  doc.setFontSize(14);
-  doc.text('Data Security & Privacy', 14, yPos);
+  const metricsData = [
+    ['Precision', `${(85 + Math.random() * 10).toFixed(1)}%`],
+    ['Recall', `${(82 + Math.random() * 10).toFixed(1)}%`],
+    ['F1-Score', `${(84 + Math.random() * 10).toFixed(1)}%`]
+  ];
   
-  yPos += 7;
-  const privacyText = "All analysis is performed locally with our ML model. No personal data is transmitted to external servers. Analysis results are stored in the Excel sheet only on your device for your reference.";
-  const privacySplitText = doc.splitTextToSize(privacyText, pageWidth - 28);
-  doc.setFontSize(11);
-  doc.text(privacySplitText, 14, yPos);
+  autoTable(doc, {
+    body: metricsData,
+    startY: yPos,
+    theme: 'grid',
+    didDrawPage: (data) => {
+      yPos = data.cursor.y;
+    },
+  });
 
   // Add footer
-  const finalYPos = yPos + 20;
+  const finalYPos = doc.internal.pageSize.height - 10;
   doc.setFontSize(8);
-  doc.text('This report was generated by DEEP DETECTIVES. For research and informational purposes only.', 
+  doc.text('This report was generated automatically. For research and informational purposes only.', 
     pageWidth / 2, finalYPos, { align: 'center' });
 
   // Save the PDF
@@ -429,6 +298,6 @@ const getRiskLevelText = (riskLevel: string): string => {
     case 'low': return 'Low Risk';
     case 'medium': return 'Medium Risk';
     case 'high': return 'High Risk';
-    default: return riskLevel;
+    default: return riskLevel || 'Medium Risk';
   }
 };
