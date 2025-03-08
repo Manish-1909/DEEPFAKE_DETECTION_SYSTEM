@@ -295,15 +295,30 @@ const IndexContent = () => {
       } else if (file.type.startsWith('video/')) {
         analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
         
+        // Generate frame images from the video
         const frameImgs = await generateVideoFrameImages(fileUrl);
         setFrameImages(frameImgs);
         
+        // Generate GradCAM visualization from the first frame
         if (frameImgs.length > 0) {
           const gradCamImage = await generateGradCamUrl(frameImgs[0]);
           setGradCamUrl(gradCamImage);
         } else {
-          const gradCamImage = await generateGradCamUrl(fileUrl);
-          setGradCamUrl(gradCamImage);
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = 640;
+          tempCanvas.height = 360;
+          const ctx = tempCanvas.getContext('2d');
+          if (ctx) {
+            // Create a placeholder image
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(0, 0, 640, 360);
+            ctx.fillStyle = '#999';
+            ctx.font = '20px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Video preview not available', 320, 180);
+            const placeholderUrl = tempCanvas.toDataURL('image/jpeg');
+            setGradCamUrl(await generateGradCamUrl(placeholderUrl));
+          }
         }
       } else if (file.type.startsWith('audio/')) {
         analysisResults = await analyzeAudio(fileUrl, shouldBeReal);
@@ -361,14 +376,31 @@ const IndexContent = () => {
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url, shouldBeReal);
         
-        const fakeFrames = [];
-        for (let i = 0; i < 4; i++) {
-          fakeFrames.push(url);
+        // For videos, create a placeholder frame and GradCAM
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 640;
+        tempCanvas.height = 360;
+        const ctx = tempCanvas.getContext('2d');
+        if (ctx) {
+          // Create a placeholder image
+          ctx.fillStyle = '#f0f0f0';
+          ctx.fillRect(0, 0, 640, 360);
+          ctx.fillStyle = '#999';
+          ctx.font = '20px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('Video frames from URL', 320, 180);
+          const placeholderUrl = tempCanvas.toDataURL('image/jpeg');
+          
+          // Generate placeholder frames
+          const fakeFrames = [];
+          for (let i = 0; i < 4; i++) {
+            fakeFrames.push(placeholderUrl);
+          }
+          setFrameImages(fakeFrames);
+          
+          const gradCamImage = await generateGradCamUrl(placeholderUrl);
+          setGradCamUrl(gradCamImage);
         }
-        setFrameImages(fakeFrames);
-        
-        const gradCamImage = await generateGradCamUrl(url);
-        setGradCamUrl(gradCamImage);
       } else if (analysisType === 'audioUrl') {
         analysisResults = await analyzeAudio(url, shouldBeReal);
         setAudioUrl(url);

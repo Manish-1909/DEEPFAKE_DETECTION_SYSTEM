@@ -284,23 +284,8 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
         </div>
       </div>
 
-      {mediaUrl && (
-        <div className="space-y-4">
-          <h3 className="text-xl font-semibold">Analyzed Media</h3>
-          {metadata.type === 'image' && (
-            <div className="relative rounded-lg overflow-hidden">
-              <img src={mediaUrl} alt="Analyzed Media" className="w-full h-auto object-cover" />
-            </div>
-          )}
-          {metadata.type === 'video' && (
-            <div className="relative aspect-video rounded-lg overflow-hidden">
-              <video src={mediaUrl} controls className="w-full h-full object-contain bg-black"></video>
-            </div>
-          )}
-        </div>
-      )}
-
-      {gradCamUrl && (metadata.type === 'image' || metadata.type === 'video') && (
+      {/* Display only GradCAM visualization */}
+      {gradCamUrl && (
         <div className="space-y-4">
           <h3 className="text-xl font-semibold">Analysis Visualization (GradCAM)</h3>
           <div className="relative rounded-lg overflow-hidden">

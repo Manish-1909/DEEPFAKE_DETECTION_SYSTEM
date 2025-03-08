@@ -79,7 +79,8 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
 
   // Add date and time
   doc.setFontSize(12);
-  doc.text(`Date and Time of Generation: ${new Date().toLocaleString()}`, pageWidth / 2, 30, { align: 'center' });
+  const dateTime = new Date().toLocaleString();
+  doc.text(`Date and Time of Generation: ${dateTime}`, pageWidth / 2, 30, { align: 'center' });
 
   // Add summary classification banner
   doc.setFillColor(results.isManipulated ? 255 : 0, results.isManipulated ? 0 : 150, 0);
@@ -92,21 +93,14 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
   );
   doc.setTextColor(0, 0, 0);
 
-  // Add images if available (original and Grad-CAM)
+  // Add images if available (GradCAM is prioritized)
   let yPos = 60;
   
-  if (originalImageUrl || gradCamImageUrl) {
-    const imgWidth = (pageWidth - 40) / 2;
-    const imgHeight = 60;
+  if (gradCamImageUrl) {
+    const imgWidth = pageWidth - 40;
+    const imgHeight = 80;
     
-    if (originalImageUrl) {
-      addImageToPdf(doc, originalImageUrl, 15, yPos, imgWidth, imgHeight, 'Original Media');
-    }
-    
-    if (gradCamImageUrl) {
-      addImageToPdf(doc, gradCamImageUrl, pageWidth/2 + 5, yPos, imgWidth, imgHeight, 'Analysis Visualization');
-    }
-    
+    addImageToPdf(doc, gradCamImageUrl, 20, yPos, imgWidth, imgHeight, 'Analysis Visualization (GradCAM)');
     yPos += imgHeight + 15;
   }
 
@@ -220,6 +214,31 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
     });
   }
 
+  // Add suspicious frames for video
+  if (results.metadata.type === 'video' && results.analysis.suspiciousFrames && results.analysis.suspiciousFrames.length > 0) {
+    yPos += 10;
+    doc.setFontSize(16);
+    doc.text('Suspicious Video Frames', 14, yPos);
+    yPos += 10;
+
+    const framesData = results.analysis.suspiciousFrames.map((frame, index) => [
+      `Frame ${index + 1}`,
+      `${(frame.timestamp / 1000).toFixed(2)}s`,
+      `${frame.confidence.toFixed(1)}%`
+    ]);
+
+    autoTable(doc, {
+      head: [['Frame ID', 'Timestamp', 'Confidence']],
+      body: framesData,
+      startY: yPos,
+      theme: 'grid',
+      headStyles: { fillColor: [70, 70, 70] },
+      didDrawPage: (data) => {
+        yPos = data.cursor.y;
+      },
+    });
+  }
+
   // Add conclusion section
   yPos += 15;
   doc.setFontSize(16);
@@ -271,6 +290,18 @@ export const generatePDFReport = (results: DetectionResult, originalImageUrl?: s
       yPos = data.cursor.y;
     },
   });
+
+  // Add analysis visualization description
+  yPos += 15;
+  doc.setFontSize(14);
+  doc.text('Analysis Visualization Interpretation', 14, yPos);
+  yPos += 8;
+
+  const visualizationText = "The GradCAM visualization uses a heatmap to highlight potential areas of manipulation, with red regions indicating higher suspicion levels. These regions may contain artifacts, inconsistencies, or modifications that the AI has detected.";
+  const splitVisualizationText = doc.splitTextToSize(visualizationText, pageWidth - 28);
+  doc.setFontSize(11);
+  doc.text(splitVisualizationText, 14, yPos);
+  yPos += splitVisualizationText.length * 7;
 
   // Add footer
   const finalYPos = doc.internal.pageSize.height - 10;
