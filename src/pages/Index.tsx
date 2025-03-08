@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import Header from "@/components/Header";
 import UploadZone from "@/components/UploadZone";
@@ -12,7 +13,8 @@ import {
   analyzeImage, 
   analyzeVideo, 
   analyzeAudio,
-  startWebcamAnalysis 
+  startWebcamAnalysis,
+  generateVideoFrameImages
 } from "@/services/detectionService";
 import { Button } from "@/components/ui/button";
 import { Camera, Sun, Moon } from "lucide-react";
@@ -112,45 +114,6 @@ const IndexContent = () => {
         variant: "destructive",
       });
     }
-  };
-
-  const generateVideoFrameImages = (videoUrl: string, count = 4): Promise<string[]> => {
-    return new Promise((resolve) => {
-      const video = document.createElement('video');
-      video.src = videoUrl;
-      video.crossOrigin = "Anonymous";
-      const frameUrls: string[] = [];
-      
-      video.onloadedmetadata = () => {
-        const duration = video.duration;
-        const interval = duration / (count + 1);
-        let framesLoaded = 0;
-        
-        for (let i = 1; i <= count; i++) {
-          const time = interval * i;
-          video.currentTime = time;
-          
-          video.onseeked = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              frameUrls.push(canvas.toDataURL('image/jpeg'));
-              
-              framesLoaded++;
-              if (framesLoaded === count) {
-                resolve(frameUrls);
-              }
-            }
-          };
-        }
-      };
-      
-      video.onerror = () => resolve([]);
-      video.load();
-    });
   };
 
   const generateGradCamUrl = (originalUrl: string): Promise<string> => {
@@ -354,11 +317,6 @@ const IndexContent = () => {
   };
 
   const handleUrlAnalysis = async (url: string) => {
-    if (!url) return;
-    await processUrl(url);
-  };
-  
-  const processUrl = async (url: string) => {
     if (!url) return;
     
     setIsAnalyzing(true);

@@ -18,7 +18,7 @@ interface HeatmapData {
 
 interface HeatmapVisualizationProps {
   heatmapData: HeatmapData;
-  mediaType: 'image' | 'video';
+  mediaType: 'image' | 'video' | 'audio';
   frameInfo?: {
     timestamp: number;
   };
@@ -36,6 +36,9 @@ const HeatmapVisualization = ({
   const [hoveredRegion, setHoveredRegion] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showGradCam, setShowGradCam] = useState(true);
+  
+  // Treat audio as image for visualization purposes
+  const visualizableMediaType = mediaType === 'audio' ? 'image' : mediaType;
   
   const HEATMAP_COLORS = [
     'rgba(0, 255, 0, 0.2)',   // Lowest intensity (green)
@@ -70,6 +73,7 @@ const HeatmapVisualization = ({
   
   console.log("HeatmapVisualization rendering with:", {
     mediaType,
+    visualizableMediaType,
     hasGradCam: !!gradCamUrl,
     hasFrameImage: !!frameImageUrl,
     showingGradCam: showGradCam
@@ -94,7 +98,7 @@ const HeatmapVisualization = ({
           className="w-full h-full flex items-center justify-center text-gray-500 dark:text-gray-400"
           style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.3s ease' }}
         >
-          {mediaType === 'image' ? 'Image Analysis' : `Frame at ${(frameInfo?.timestamp || 0) / 1000}s`}
+          {visualizableMediaType === 'image' ? 'Image Analysis' : `Frame at ${(frameInfo?.timestamp || 0) / 1000}s`}
         </div>
       )}
       
@@ -176,7 +180,7 @@ const HeatmapVisualization = ({
       {/* Explanation */}
       {gradCamUrl && showGradCam && (
         <div className="absolute bottom-2 left-2 bg-black/80 text-white text-xs p-2 rounded-md max-w-xs">
-          {mediaType === 'video' && frameInfo ? (
+          {visualizableMediaType === 'video' && frameInfo ? (
             <>Frame at {(frameInfo.timestamp / 1000).toFixed(1)}s: Grad-CAM highlights potential manipulation.</>
           ) : (
             <>Grad-CAM highlights regions that most influenced the model's decision with warmer colors showing manipulated areas.</>
