@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import Header from "@/components/Header";
 import UploadZone from "@/components/UploadZone";
@@ -16,13 +15,10 @@ import {
   startWebcamAnalysis 
 } from "@/services/detectionService";
 import { Button } from "@/components/ui/button";
-import { Camera, Sun, Moon, AlertTriangle } from "lucide-react";
+import { Camera, Sun, Moon } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import { ThemeProvider, useTheme } from "@/hooks/useTheme";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
-// Add polyfill for ImageCapture if needed
-// Use proper type declarations
 interface ImageCapture {
   track: MediaStreamTrack;
   grabFrame(): Promise<ImageBitmap>;
@@ -36,7 +32,6 @@ declare global {
   }
 }
 
-// Polyfill for browsers that don't support ImageCapture
 if (!('ImageCapture' in window)) {
   window.ImageCapture = class {
     track: MediaStreamTrack;
@@ -76,9 +71,6 @@ const IndexContent = () => {
   const [frameImages, setFrameImages] = useState<string[]>([]);
   const [analysisCount, setAnalysisCount] = useState(0);
   const [latestEntry, setLatestEntry] = useState<AnalysisEntry | undefined>();
-  const [showSensitiveContentDialog, setShowSensitiveContentDialog] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -122,7 +114,6 @@ const IndexContent = () => {
     }
   };
 
-  // Generate frame images for videos
   const generateVideoFrameImages = (videoUrl: string, count = 4): Promise<string[]> => {
     return new Promise((resolve) => {
       const video = document.createElement('video');
@@ -162,7 +153,6 @@ const IndexContent = () => {
     });
   };
 
-  // Generate a fake Grad-CAM image URL based on the original image
   const generateGradCamUrl = (originalUrl: string): Promise<string> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -178,13 +168,10 @@ const IndexContent = () => {
         canvas.width = img.width;
         canvas.height = img.height;
         
-        // Draw the original image
         ctx.drawImage(img, 0, 0);
         
-        // Apply a red overlay with random opacity to simulate Grad-CAM heatmap
         ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
         
-        // Create random "hotspots"
         for (let i = 0; i < 5; i++) {
           const x = Math.random() * canvas.width;
           const y = Math.random() * canvas.height;
@@ -223,13 +210,10 @@ const IndexContent = () => {
       
       const shouldBeReal = isRealResult(newAnalysisCount);
       
-      // Capture a frame from the webcam
       const track = webcamStream.getVideoTracks()[0];
-      // Use our polyfill or the native ImageCapture
       const imageCapture = new window.ImageCapture!(track);
       const bitmap = await imageCapture.grabFrame();
       
-      // Convert to blob URL
       const canvas = document.createElement('canvas');
       canvas.width = bitmap.width;
       canvas.height = bitmap.height;
@@ -239,18 +223,15 @@ const IndexContent = () => {
       
       setMediaUrl(captureUrl);
       
-      // Generate Grad-CAM visualization
       const gradCamImage = await generateGradCamUrl(captureUrl);
       setGradCamUrl(gradCamImage);
       
-      // Generate frame images (for webcam, we just use the same image multiple times with different effects)
       const frameImgs = [captureUrl];
       setFrameImages(frameImgs);
       
       const analysisResults = await startWebcamAnalysis(webcamStream, shouldBeReal);
       setResults(analysisResults);
       
-      // Create and store analysis entry
       const entry = createAnalysisEntry(analysisResults);
       setLatestEntry(entry);
       
@@ -271,16 +252,6 @@ const IndexContent = () => {
 
   const handleFileAnalysis = async (files: File[]) => {
     if (files.length === 0) return;
-    
-    // Check for sensitive content
-    const file = files[0];
-    if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
-      setShowSensitiveContentDialog(true);
-      setPendingFiles(files);
-      return;
-    }
-    
-    // Process audio files directly as they don't need sensitive content warning
     await processFiles(files);
   };
   
@@ -301,7 +272,6 @@ const IndexContent = () => {
       let analysisResults: DetectionResult;
       
       if (file.type.startsWith('image/')) {
-        // Generate Grad-CAM visualization for images
         const gradCamImage = await generateGradCamUrl(fileUrl);
         setGradCamUrl(gradCamImage);
         setFrameImages([fileUrl]);
@@ -310,11 +280,9 @@ const IndexContent = () => {
       } else if (file.type.startsWith('video/')) {
         analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
         
-        // Generate frame images for videos
         const frameImgs = await generateVideoFrameImages(fileUrl);
         setFrameImages(frameImgs);
         
-        // Generate Grad-CAM for videos as well
         if (frameImgs.length > 0) {
           const gradCamImage = await generateGradCamUrl(frameImgs[0]);
           setGradCamUrl(gradCamImage);
@@ -331,7 +299,6 @@ const IndexContent = () => {
       
       setResults(analysisResults);
       
-      // Create and store analysis entry
       const entry = createAnalysisEntry(analysisResults);
       setLatestEntry(entry);
       
@@ -348,21 +315,11 @@ const IndexContent = () => {
       });
     } finally {
       setIsAnalyzing(false);
-      setPendingFiles([]);
     }
   };
 
   const handleUrlAnalysis = async (url: string) => {
     if (!url) return;
-    
-    // Check for sensitive content for image and video URLs
-    if (analysisType === 'imageUrl' || analysisType === 'videoUrl') {
-      setShowSensitiveContentDialog(true);
-      setPendingUrl(url);
-      return;
-    }
-    
-    // Process audio URLs directly
     await processUrl(url);
   };
   
@@ -381,7 +338,6 @@ const IndexContent = () => {
       let analysisResults: DetectionResult;
       
       if (analysisType === 'imageUrl') {
-        // Generate Grad-CAM visualization for images
         const gradCamImage = await generateGradCamUrl(url);
         setGradCamUrl(gradCamImage);
         setFrameImages([url]);
@@ -390,15 +346,12 @@ const IndexContent = () => {
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url, shouldBeReal);
         
-        // Generate frame images for videos (this is a bit tricky with remote URLs)
-        // For demo purposes, we'll create some fake frames
         const fakeFrames = [];
         for (let i = 0; i < 4; i++) {
-          fakeFrames.push(url); // Use the video thumbnail URL as placeholder
+          fakeFrames.push(url);
         }
         setFrameImages(fakeFrames);
         
-        // Generate Grad-CAM for videos
         const gradCamImage = await generateGradCamUrl(url);
         setGradCamUrl(gradCamImage);
       } else if (analysisType === 'audioUrl') {
@@ -410,7 +363,6 @@ const IndexContent = () => {
       
       setResults(analysisResults);
       
-      // Create and store analysis entry
       const entry = createAnalysisEntry(analysisResults);
       setLatestEntry(entry);
       
@@ -427,29 +379,7 @@ const IndexContent = () => {
       });
     } finally {
       setIsAnalyzing(false);
-      setPendingUrl(null);
     }
-  };
-
-  const handleSensitiveContentConfirm = () => {
-    setShowSensitiveContentDialog(false);
-    
-    if (pendingFiles.length > 0) {
-      processFiles(pendingFiles);
-    } else if (pendingUrl) {
-      processUrl(pendingUrl);
-    }
-  };
-
-  const handleSensitiveContentCancel = () => {
-    setShowSensitiveContentDialog(false);
-    setPendingFiles([]);
-    setPendingUrl(null);
-    
-    toast({
-      title: "Analysis cancelled",
-      description: "You've chosen not to proceed with the analysis.",
-    });
   };
 
   const isAudioAnalysis = results?.metadata.type === 'audio';
@@ -524,32 +454,6 @@ const IndexContent = () => {
           )}
         </motion.div>
       </div>
-
-      {/* Sensitive Content Dialog */}
-      <Dialog open={showSensitiveContentDialog} onOpenChange={setShowSensitiveContentDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Sensitive Content Disclaimer
-            </DialogTitle>
-            <DialogDescription>
-              The deepfake detection system will analyze your content to determine if it has been manipulated.
-              By proceeding, you confirm:
-              <ul className="list-disc pl-5 mt-2 space-y-1">
-                <li>You have the right to analyze this content</li>
-                <li>The content doesn't violate privacy or copyright laws</li>
-                <li>You understand that all analysis is performed locally on your device</li>
-                <li>No content will be uploaded to external servers</li>
-              </ul>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleSensitiveContentCancel}>Cancel</Button>
-            <Button onClick={handleSensitiveContentConfirm}>I Understand, Proceed</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

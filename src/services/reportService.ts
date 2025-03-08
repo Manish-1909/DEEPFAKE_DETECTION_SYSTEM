@@ -1,0 +1,171 @@
+
+import { DetectionResult } from './detectionService';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+export const generatePDFReport = (results: DetectionResult, mediaUrl?: string, gradCamUrl?: string) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.width;
+
+  // Add title
+  doc.setFontSize(20);
+  doc.text('DEEP DETECTIVES - Analysis Report', pageWidth / 2, 20, { align: 'center' });
+
+  // Add subtitle
+  doc.setFontSize(14);
+  doc.text('ML-based Deepfake Detection System', pageWidth / 2, 30, { align: 'center' });
+
+  // Add timestamp
+  doc.setFontSize(10);
+  doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, 40, { align: 'center' });
+
+  // Add summary banner
+  doc.setFillColor(results.isManipulated ? 255 : 0, results.isManipulated ? 0 : 150, 0);
+  doc.rect(14, 45, pageWidth - 28, 10, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(12);
+  doc.text(
+    results.isManipulated ? 'POTENTIAL MANIPULATION DETECTED' : 'LIKELY AUTHENTIC',
+    pageWidth / 2, 52, { align: 'center' }
+  );
+  doc.setTextColor(0, 0, 0);
+
+  // Add images if available (original and Grad-CAM)
+  let yPos = 60;
+  
+  if (mediaUrl || gradCamUrl) {
+    const imgWidth = (pageWidth - 40) / 2;
+    const imgHeight = 60;
+    
+    if (mediaUrl) {
+      addImageToPdf(doc, mediaUrl, 15, yPos, imgWidth, imgHeight, 'Original Media');
+    }
+    
+    if (gradCamUrl) {
+      addImageToPdf(doc, gradCamUrl, pageWidth/2 + 5, yPos, imgWidth, imgHeight, 'Analysis Visualization');
+    }
+    
+    yPos += imgHeight + 15;
+  }
+
+  // Add interpretation guide for non-technical people
+  yPos += 10;
+  doc.setFontSize(14);
+  doc.text('Interpretation Guide', 14, yPos);
+  
+  yPos += 7;
+  doc.setFontSize(11);
+  
+  // Add confidence range interpretation
+  const confidenceValue = results.confidence;
+  let rangeText = "";
+  
+  if (confidenceValue > 85) {
+    rangeText = "Very High certainty (85-100%): The analysis is extremely confident in its determination.";
+  } else if (confidenceValue > 70) {
+    rangeText = "High certainty (70-85%): The analysis is highly confident in its determination.";
+  } else if (confidenceValue > 50) {
+    rangeText = "Moderate certainty (50-70%): There is reasonable confidence in the analysis.";
+  } else if (confidenceValue > 30) {
+    rangeText = "Low certainty (30-50%): The analysis has low confidence in its determination.";
+  } else {
+    rangeText = "Very low certainty (0-30%): The analysis has very low confidence in its determination.";
+  }
+  
+  const interpretationText = `This ${results.metadata.type} has been analyzed with a confidence score of ${confidenceValue.toFixed(1)}%. ${rangeText} ${results.isManipulated ? 
+    'Our system has detected potential signs of manipulation.' : 
+    'Our system believes this content is likely authentic.'}`;
+  
+  const splitText = doc.splitTextToSize(interpretationText, pageWidth - 28);
+  doc.text(splitText, 14, yPos);
+  
+  yPos += splitText.length * 7 + 10;
+
+  // Add main results
+  const mainResults = [
+    ['Media Type', results.metadata.type],
+    ['Confidence Score', `${results.confidence.toFixed(1)}%`],
+    ['Classification', getClassificationText(results.classification)],
+    ['Resolution', results.metadata.resolution || 'N/A']
+  ];
+
+  // Add main results table
+  autoTable(doc, {
+    head: [['Parameter', 'Value']],
+    body: mainResults,
+    startY: yPos,
+    theme: 'grid',
+    didDrawPage: (data) => {
+      yPos = data.cursor.y;
+    },
+  });
+
+  // Add conclusion
+  yPos += 15;
+  doc.setFontSize(14);
+  doc.text('Conclusion', 14, yPos);
+  
+  yPos += 7;
+  doc.setFontSize(11);
+  let conclusionText = results.isManipulated 
+    ? `This ${results.metadata.type} shows signs of potential manipulation with ${results.confidence.toFixed(1)}% confidence. `
+    : `This ${results.metadata.type} appears to be authentic with ${(100-results.confidence).toFixed(1)}% confidence. `;
+    
+  // Add recommendation based on confidence range
+  if (confidenceValue > 85) {
+    conclusionText += results.isManipulated 
+      ? "Recommended action: Consider this content to be manipulated." 
+      : "Recommended action: This content can be trusted with high confidence.";
+  } else if (confidenceValue > 70) {
+    conclusionText += results.isManipulated 
+      ? "Recommended action: Treat this content with high suspicion."
+      : "Recommended action: This content is likely reliable but verify when possible.";
+  } else if (confidenceValue > 50) {
+    conclusionText += "Recommended action: Exercise caution and seek additional verification.";
+  } else {
+    conclusionText += "Recommended action: The analysis is inconclusive. Treat with skepticism and verify independently.";
+  }
+
+  // Add wrapped text
+  const splitConclusionText = doc.splitTextToSize(conclusionText, pageWidth - 28);
+  doc.text(splitConclusionText, 14, yPos);
+
+  // Add footer
+  const finalYPos = doc.internal.pageSize.height - 10;
+  doc.setFontSize(8);
+  doc.text('This report was generated by DEEP DETECTIVES. For research and informational purposes only.', 
+    pageWidth / 2, finalYPos, { align: 'center' });
+
+  // Save the PDF
+  doc.save('deepfake-detection-report.pdf');
+};
+
+// Helper function to add images to PDF
+const addImageToPdf = (doc: jsPDF, dataUrl: string, x: number, y: number, width: number, height: number, title: string) => {
+  if (dataUrl) {
+    try {
+      doc.addImage(dataUrl, 'JPEG', x, y, width, height);
+      doc.setFontSize(10);
+      doc.text(title, x + width/2, y + height + 5, { align: 'center' });
+    } catch (error) {
+      console.error('Error adding image to PDF:', error);
+      // Add a placeholder or error message instead
+      doc.setFillColor(240, 240, 240);
+      doc.rect(x, y, width, height, 'F');
+      doc.setFontSize(10);
+      doc.text('Image could not be displayed', x + width/2, y + height/2, { align: 'center' });
+      doc.text(title, x + width/2, y + height + 5, { align: 'center' });
+    }
+  }
+};
+
+// Helper functions for report formatting
+const getClassificationText = (classification: string): string => {
+  switch(classification) {
+    case 'highly_authentic': return 'Highly Authentic';
+    case 'likely_authentic': return 'Likely Authentic';
+    case 'possibly_manipulated': return 'Possibly Manipulated';
+    case 'highly_manipulated': return 'Highly Manipulated';
+    default: return classification;
+  }
+};

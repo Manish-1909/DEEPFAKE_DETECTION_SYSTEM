@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { FileImage, FileVideo, Headphones, AlertTriangle } from 'lucide-react';
 import { generatePDFReport } from '@/services/reportService';
@@ -13,6 +14,14 @@ interface DetectionResult {
     [key: string]: any;
   };
   suspiciousFrames?: { timestamp: number; confidence: number }[];
+  analysis: {
+    faceConsistency: number;
+    lightingConsistency: number;
+    artifactsScore: number;
+    heatmapData?: any;
+    suspiciousFrames?: any[];
+  };
+  riskLevel: string;
 }
 
 interface AnalysisDisplayProps {
@@ -38,28 +47,28 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({ results, mediaUrl, gr
     }
   };
   
-const handleDownloadReport = () => {
-  try {
-    // Pass only three arguments to match the function signature
-    generatePDFReport(
-      results, 
-      mediaUrl || undefined, 
-      gradCamUrl || undefined
-    );
-    
-    toast({
-      title: 'Report generated',
-      description: 'The analysis report has been successfully generated and downloaded.',
-    });
-  } catch (error) {
-    console.error('Error generating report:', error);
-    toast({
-      title: 'Error generating report',
-      description: 'Failed to generate the analysis report.',
-      variant: 'destructive',
-    });
-  }
-};
+  const handleDownloadReport = () => {
+    try {
+      // Pass only three arguments to match the function signature
+      generatePDFReport(
+        results, 
+        mediaUrl || undefined, 
+        gradCamUrl || undefined
+      );
+      
+      toast({
+        title: 'Report generated',
+        description: 'The analysis report has been successfully generated and downloaded.',
+      });
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast({
+        title: 'Error generating report',
+        description: 'Failed to generate the analysis report.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const renderClassification = () => {
     const isDeepfake = isManipulated;
@@ -74,49 +83,67 @@ const handleDownloadReport = () => {
     );
   };
 
-const renderFrameAnalysis = () => {
-  
-  const displayFrames = frameImages.length === 0 
-    ? []
-    : suspiciousFrames.slice(0, 4).map(frame => ({ 
-        url: gradCamUrl || mediaUrl, 
-        timestamp: frame.timestamp,
-        ...(typeof frame.confidence === 'number' && { confidence: frame.confidence })
-      }));
-  
-  return (
-    <div className="space-y-4">
-      <h4 className="text-lg font-semibold">Suspicious Frames Analysis</h4>
-      
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {displayFrames.map((frame, index) => (
-          <div key={index} className="relative rounded-lg overflow-hidden">
-            <div className="aspect-video bg-gray-100 dark:bg-gray-800">
-              <img 
-                src={frame.url} 
-                alt={`Frame ${index + 1}`}
-                className="w-full h-full object-cover"
-              />
+  const renderFrameAnalysis = () => {
+    const displayFrames = frameImages.length === 0 
+      ? []
+      : suspiciousFrames.slice(0, 4).map((frame, index) => ({
+          url: index < frameImages.length ? frameImages[index] : (gradCamUrl || mediaUrl || ''), 
+          timestamp: frame.timestamp,
+          confidence: frame.confidence
+        }));
+    
+    return (
+      <div className="space-y-4">
+        <h4 className="text-lg font-semibold">Suspicious Frames Analysis</h4>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {displayFrames.map((frame, index) => (
+            <div key={index} className="relative rounded-lg overflow-hidden">
+              <div className="aspect-video bg-gray-100 dark:bg-gray-800">
+                <img 
+                  src={frame.url} 
+                  alt={`Frame ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
+                {frame.timestamp ? `${(frame.timestamp / 1000).toFixed(1)}s` : `Frame ${index + 1}`}
+                {typeof frame.confidence === 'number' ? ` - ${frame.confidence.toFixed(0)}%` : ''}
+              </div>
             </div>
-            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1">
-              {frame.timestamp ? `${(frame.timestamp / 1000).toFixed(1)}s` : `Frame ${index + 1}`}
-              {typeof frame.confidence === 'number' ? ` - ${frame.confidence.toFixed(0)}%` : ''}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   const renderConfidenceLevel = () => {
     const confidenceLevel = confidence;
     const textColorClass = confidenceLevel > 70 ? 'text-green-500' : confidenceLevel > 40 ? 'text-yellow-500' : 'text-red-500';
 
+    // Add confidence range interpretation
+    let rangeText = "";
+    if (confidenceLevel > 85) {
+      rangeText = "Very High certainty (85-100%)";
+    } else if (confidenceLevel > 70) {
+      rangeText = "High certainty (70-85%)";
+    } else if (confidenceLevel > 50) {
+      rangeText = "Moderate certainty (50-70%)";
+    } else if (confidenceLevel > 30) {
+      rangeText = "Low certainty (30-50%)";
+    } else {
+      rangeText = "Very low certainty (0-30%)";
+    }
+
     return (
-      <span className={`font-semibold ${textColorClass}`}>
-        {confidenceLevel.toFixed(2)}%
-      </span>
+      <div className="space-y-1">
+        <span className={`font-semibold ${textColorClass}`}>
+          {confidenceLevel.toFixed(2)}%
+        </span>
+        <div className="text-xs text-gray-500">
+          {rangeText}
+        </div>
+      </div>
     );
   };
 
@@ -156,7 +183,7 @@ const renderFrameAnalysis = () => {
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                 {metadata &&
                   Object.entries(metadata).map(([key, value]) => (
-                    <div key={key} className="text-sm">
+                    <div key={uuidv4()} className="text-sm">
                       <span className="font-semibold">{key}:</span> {String(value)}
                     </div>
                   ))}
@@ -184,14 +211,14 @@ const renderFrameAnalysis = () => {
 
       {gradCamUrl && metadata.type === 'image' && (
         <div className="space-y-4">
-          <h3 className="text-xl font-semibold">Grad-CAM Visualization</h3>
+          <h3 className="text-xl font-semibold">Analysis Visualization</h3>
           <div className="relative rounded-lg overflow-hidden">
-            <img src={gradCamUrl} alt="Grad-CAM Visualization" className="w-full h-auto object-cover" />
+            <img src={gradCamUrl} alt="Analysis Visualization" className="w-full h-auto object-cover" />
           </div>
         </div>
       )}
 
-      {suspiciousFrames.length > 0 && renderFrameAnalysis()}
+      {suspiciousFrames.length > 0 && metadata.type === 'video' && renderFrameAnalysis()}
 
       <div className="text-center">
         <button
