@@ -68,6 +68,13 @@ const HeatmapVisualization = ({
   // Determine which image to display
   const displayImageUrl = showGradCam ? gradCamUrl : frameImageUrl || gradCamUrl;
   
+  console.log("HeatmapVisualization rendering with:", {
+    mediaType,
+    hasGradCam: !!gradCamUrl,
+    hasFrameImage: !!frameImageUrl,
+    showingGradCam: showGradCam
+  });
+  
   return (
     <div className="relative aspect-video max-w-3xl mx-auto rounded-lg overflow-hidden bg-gray-200 border border-gray-300 dark:bg-gray-800 dark:border-gray-700">
       {/* GradCAM View or Frame Image */}

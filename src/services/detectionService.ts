@@ -414,8 +414,10 @@ export const analyzeImage = async (imageUrl: string, shouldBeReal: boolean = fal
 };
 
 export const analyzeVideo = async (videoUrl: string, shouldBeReal: boolean = false): Promise<DetectionResult> => {
+  console.log("Starting video analysis for:", videoUrl.substring(0, 50) + '...');
   // Simulate longer processing time for videos
   await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
+  console.log("Video analysis complete, generating result");
   return generateResult('video', shouldBeReal);
 };
 
@@ -429,4 +431,64 @@ export const startWebcamAnalysis = async (stream: MediaStream, shouldBeReal: boo
   // Simulate processing
   await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
   return generateResult('video', shouldBeReal);
+};
+
+export const generateVideoFrameImages = async (videoUrl: string, count = 4): Promise<string[]> => {
+  console.log(`Generating ${count} frames from video:`, videoUrl.substring(0, 50) + '...');
+  
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.src = videoUrl;
+    video.crossOrigin = "Anonymous";
+    const frameUrls: string[] = [];
+    
+    video.onloadedmetadata = () => {
+      const duration = video.duration;
+      console.log(`Video loaded, duration: ${duration}s`);
+      const interval = duration / (count + 1);
+      let framesLoaded = 0;
+      
+      const captureFrame = (index: number) => {
+        const time = interval * index;
+        video.currentTime = time;
+      };
+      
+      video.onseeked = () => {
+        console.log(`Video seeked to ${video.currentTime}s, capturing frame`);
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const frameUrl = canvas.toDataURL('image/jpeg');
+          frameUrls.push(frameUrl);
+          
+          framesLoaded++;
+          console.log(`Frame ${framesLoaded}/${count} captured`);
+          
+          if (framesLoaded === count) {
+            console.log('All frames captured, resolving');
+            resolve(frameUrls);
+          } else if (framesLoaded < count) {
+            captureFrame(framesLoaded + 1);
+          }
+        }
+      };
+      
+      // Start the frame capture sequence
+      if (count > 0) {
+        captureFrame(1);
+      } else {
+        resolve([]);
+      }
+    };
+    
+    video.onerror = (e) => {
+      console.error('Video loading error:', e);
+      resolve([]);
+    };
+    
+    video.load();
+  });
 };

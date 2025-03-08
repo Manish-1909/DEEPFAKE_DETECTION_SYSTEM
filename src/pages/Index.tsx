@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import Header from "@/components/Header";
 import UploadZone from "@/components/UploadZone";
@@ -293,17 +292,19 @@ const IndexContent = () => {
         
         analysisResults = await analyzeImage(fileUrl, shouldBeReal);
       } else if (file.type.startsWith('video/')) {
-        analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
-        
-        // Generate frame images from the video
+        console.log("Processing video file:", file.name, file.type);
+        // First generate frame images from the video to ensure we have them
         const frameImgs = await generateVideoFrameImages(fileUrl);
+        console.log("Generated frame images:", frameImgs.length);
         setFrameImages(frameImgs);
         
         // Generate GradCAM visualization from the first frame
         if (frameImgs.length > 0) {
           const gradCamImage = await generateGradCamUrl(frameImgs[0]);
           setGradCamUrl(gradCamImage);
+          console.log("Generated GradCAM from first frame");
         } else {
+          console.log("No frames extracted, creating placeholder");
           const tempCanvas = document.createElement('canvas');
           tempCanvas.width = 640;
           tempCanvas.height = 360;
@@ -320,6 +321,10 @@ const IndexContent = () => {
             setGradCamUrl(await generateGradCamUrl(placeholderUrl));
           }
         }
+        
+        // Now run the video analysis
+        analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
+        console.log("Video analysis complete:", analysisResults);
       } else if (file.type.startsWith('audio/')) {
         analysisResults = await analyzeAudio(fileUrl, shouldBeReal);
         setAudioUrl(fileUrl);
@@ -334,7 +339,7 @@ const IndexContent = () => {
       
       toast({
         title: "Analysis complete",
-        description: `Your media has been analyzed and determined to be ${shouldBeReal ? 'authentic' : 'a deepfake'}.`,
+        description: `Your media has been analyzed and determined to be ${analysisResults.isManipulated ? 'a deepfake' : 'authentic'}.`,
       });
     } catch (error) {
       console.error('Analysis failed:', error);
