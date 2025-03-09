@@ -1,6 +1,7 @@
-
 import { useState, useRef, useEffect } from "react";
 import Header from "@/components/Header";
+import Navigation from "@/components/Navigation";
+import Copyright from "@/components/Copyright";
 import UploadZone from "@/components/UploadZone";
 import AnalysisDisplay from "@/components/AnalysisDisplay";
 import AudioAnalysisDisplay from "@/components/AudioAnalysisDisplay";
@@ -133,16 +134,13 @@ const IndexContent = () => {
         
         ctx.drawImage(img, 0, 0);
         
-        // Add more realistic heatmap visualization
         ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
         
-        // Create more complex patterns for better visualization
         for (let i = 0; i < 5; i++) {
           const x = Math.random() * canvas.width;
           const y = Math.random() * canvas.height;
           const radius = 20 + Math.random() * 50;
           
-          // Use radial gradients for more realistic heatmap effect
           const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
           gradient.addColorStop(0, 'rgba(255, 0, 0, 0.7)');
           gradient.addColorStop(0.5, 'rgba(255, 0, 0, 0.3)');
@@ -195,11 +193,9 @@ const IndexContent = () => {
       
       setMediaUrl(captureUrl);
       
-      // Generate GradCAM visualization for the webcam image
       const gradCamImage = await generateGradCamUrl(captureUrl);
       setGradCamUrl(gradCamImage);
       
-      // Use both the capture and GradCAM image for frame images
       const frameImgs = [captureUrl, gradCamImage];
       setFrameImages(frameImgs);
       
@@ -246,22 +242,17 @@ const IndexContent = () => {
       let analysisResults: DetectionResult;
       
       if (file.type.startsWith('image/')) {
-        // Generate and set GradCAM visualization
         const gradCamImage = await generateGradCamUrl(fileUrl);
         setGradCamUrl(gradCamImage);
-        
-        // Set frame images to include both original and GradCAM
         setFrameImages([fileUrl, gradCamImage]);
         
         analysisResults = await analyzeImage(fileUrl, shouldBeReal);
       } else if (file.type.startsWith('video/')) {
         console.log("Processing video file:", file.name, file.type);
-        // First generate frame images from the video to ensure we have them
         const frameImgs = await generateVideoFrameImages(fileUrl);
         console.log("Generated frame images:", frameImgs.length);
         setFrameImages(frameImgs);
         
-        // Generate GradCAM visualization from the first frame
         if (frameImgs.length > 0) {
           const gradCamImage = await generateGradCamUrl(frameImgs[0]);
           setGradCamUrl(gradCamImage);
@@ -273,7 +264,6 @@ const IndexContent = () => {
           tempCanvas.height = 360;
           const ctx = tempCanvas.getContext('2d');
           if (ctx) {
-            // Create a placeholder image
             ctx.fillStyle = '#f0f0f0';
             ctx.fillRect(0, 0, 640, 360);
             ctx.fillStyle = '#999';
@@ -285,7 +275,6 @@ const IndexContent = () => {
           }
         }
         
-        // Now run the video analysis
         analysisResults = await analyzeVideo(fileUrl, shouldBeReal);
         console.log("Video analysis complete:", analysisResults);
       } else if (file.type.startsWith('audio/')) {
@@ -339,13 +328,11 @@ const IndexContent = () => {
       } else if (analysisType === 'videoUrl') {
         analysisResults = await analyzeVideo(url, shouldBeReal);
         
-        // For videos, create a placeholder frame and GradCAM
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 640;
         tempCanvas.height = 360;
         const ctx = tempCanvas.getContext('2d');
         if (ctx) {
-          // Create a placeholder image
           ctx.fillStyle = '#f0f0f0';
           ctx.fillRect(0, 0, 640, 360);
           ctx.fillStyle = '#999';
@@ -354,7 +341,6 @@ const IndexContent = () => {
           ctx.fillText('Video frames from URL', 320, 180);
           const placeholderUrl = tempCanvas.toDataURL('image/jpeg');
           
-          // Generate placeholder frames
           const fakeFrames = [];
           for (let i = 0; i < 4; i++) {
             fakeFrames.push(placeholderUrl);
@@ -397,13 +383,19 @@ const IndexContent = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted dark:from-gray-900 dark:to-gray-950">
       <div className="container mx-auto px-4">
-        <div className="flex justify-end py-4">
-          <Button variant="outline" size="sm" onClick={toggleTheme} className="gap-2">
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-          </Button>
+        <div className="flex justify-between items-center py-4">
+          <div className="flex-1">
+            <Header />
+          </div>
+          <div className="flex items-center gap-4">
+            <Navigation />
+            <Button variant="outline" size="sm" onClick={toggleTheme} className="gap-2">
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+            </Button>
+          </div>
         </div>
-        <Header />
+        
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -463,6 +455,10 @@ const IndexContent = () => {
             </>
           )}
         </motion.div>
+        
+        <div className="py-6 mt-8">
+          <Copyright />
+        </div>
       </div>
     </div>
   );

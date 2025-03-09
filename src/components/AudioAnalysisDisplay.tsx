@@ -160,7 +160,7 @@ const AudioAnalysisDisplay = ({ results, audioUrl }: AudioAnalysisDisplayProps) 
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <h3 className="text-xl font-semibold">Audio Analysis Results</h3>
-            <Badge variant={isManipulated ? "destructive" : "success"} className="text-sm px-3">
+            <Badge variant={isManipulated ? "destructive" : "default"} className="text-sm px-3">
               {isManipulated ? 'DEEPFAKE' : 'AUTHENTIC'}
             </Badge>
           </div>
@@ -435,7 +435,7 @@ const AudioAnalysisDisplay = ({ results, audioUrl }: AudioAnalysisDisplayProps) 
         <div className="text-center pt-4">
           <Button
             onClick={handleDownloadReport}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md py-2 px-4 font-semibold transition-colors duration-200 flex items-center gap-2 mx-auto"
+            className="gap-2"
           >
             <FileDown className="w-4 h-4" />
             Download Analysis Report
